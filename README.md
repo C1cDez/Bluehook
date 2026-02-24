@@ -1,2 +1,2 @@
 # Bluehook
-Simple Bluetooth CLI
+Simple Bluetooth CLI for Windows

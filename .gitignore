@@ -1,6 +1,12 @@
 # Prerequisites
 *.d
 
+# Visual Studio
+*.slnx
+bin/
+*.vcxproj
+*.vcxproj.*
+
 # Object files
 *.o
 *.ko

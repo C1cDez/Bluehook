@@ -1,0 +1,317 @@
+#include "bluehook.h"
+
+#include <stdio.h>
+
+#include <Windows.h>
+#include <BluetoothAPIs.h>
+
+#pragma comment(lib, "Bthprops.lib")
+
+
+#define WYESNO(cond) (cond) ? L"Yes" : L"No"
+
+#define MBNAME(name) name[0] ? name : L"[UNDEFINED]"
+
+
+static
+void addr2str(char* buff, BLUETOOTH_ADDRESS_STRUCT addr)
+{
+	sprintf_s(buff, 18, "%02x:%02x:%02x:%02x:%02x:%02x", 
+		addr.rgBytes[5], addr.rgBytes[4], addr.rgBytes[3], addr.rgBytes[2], addr.rgBytes[1], addr.rgBytes[0]);
+}
+static
+BLUETOOTH_ADDRESS_STRUCT str2addr(const char* addr)
+{
+	unsigned b0, b1, b2, b3, b4, b5;
+	sscanf_s(addr, "%2x:%2x:%2x:%2x:%2x:%2x", &b5, &b4, &b3, &b2, &b1, &b0);
+	BLUETOOTH_ADDRESS_STRUCT bth_addr = {
+		.rgBytes = { b0, b1, b2, b3, b4, b5 }
+	};
+	return bth_addr;
+}
+
+static
+int format_systemtime(char* buff, SYSTEMTIME st)
+{
+	if (st.wYear == 1601)
+		sprintf_s(buff, 7, "[NONE]");
+	else
+		sprintf_s(buff, 24, "%hd-%02hd-%02hd %02hd:%02hd:%02hd.%03hd",
+			st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+}
+
+
+int is_bluetooth_available()
+{
+	HANDLE hRadio;
+	BLUETOOTH_FIND_RADIO_PARAMS params = { sizeof(BLUETOOTH_FIND_RADIO_PARAMS) };
+	HBLUETOOTH_RADIO_FIND hFind = BluetoothFindFirstRadio(&params, &hRadio);
+	if (hFind)
+	{
+		BluetoothFindRadioClose(hFind);
+		return 1;
+	}
+	else return 0;
+}
+
+
+static
+int switch_radio_modes(bth_radio_query_t* query)
+{
+	/*
+	if (query->discoverable)
+	{
+		BOOL disc = BluetoothIsDiscoverable(NULL);
+		if (BluetoothEnableIncomingConnections(NULL, !disc))
+		{
+			printf("Successfully turned %s discovery\n", disc ? "off" : "on");
+			return 0;
+		}
+		else
+		{
+			printf("Faield to update discovery\n");
+			return 1;
+		}
+	}
+	if (query->connectable)
+	{
+		BOOL conn = BluetoothIsConnectable(NULL);
+		if (BluetoothEnableIncomingConnections(NULL, !conn))
+		{
+			printf("Successfully turned %s incoming connections\n", conn ? "off" : "on");
+			return 0;
+		}
+		else
+		{
+			printf("Faield to update incoming connections\n");
+			return 1;
+		}
+	}
+	*/
+	return 0;
+}
+int bluehook_radio_info(bth_radio_query_t* query)
+{
+	if (query->connectable || query->discoverable) return switch_radio_modes(query);
+
+	HANDLE hRadio;
+	BLUETOOTH_FIND_RADIO_PARAMS params = { sizeof(BLUETOOTH_FIND_RADIO_PARAMS) };
+	BLUETOOTH_RADIO_INFO radio_info = { sizeof(BLUETOOTH_RADIO_INFO) };
+	HBLUETOOTH_RADIO_FIND hFind = BluetoothFindFirstRadio(&params, &hRadio);
+	if (hFind)
+	{
+		do
+		{
+			if (BluetoothGetRadioInfo(hRadio, &radio_info) == ERROR_SUCCESS)
+			{
+				char addr[18] = { 0 };
+				addr2str(addr, radio_info.address);
+
+				wprintf(
+					L"%s (%u):\n"
+					"\tAddress:\t\t%hs\n"
+					"\tManufacturer:\t\t%hd\n"			
+					"\tLMP Subversion:\t\t%hd\n"
+					"\tConnectable:\t\t%s\n"
+					"\tDiscoverable:\t\t%s\n"
+					"\n"
+					,
+					MBNAME(radio_info.szName),
+					radio_info.ulClassofDevice,
+					addr,
+					radio_info.manufacturer, radio_info.lmpSubversion,
+					WYESNO(BluetoothIsConnectable(hRadio)),
+					WYESNO(BluetoothIsDiscoverable(hRadio))
+				);
+			}
+
+		} while (BluetoothFindNextRadio(hFind, &hRadio));
+		BluetoothFindRadioClose(hFind);
+	}
+	else
+	{
+		fprintf(stderr, "Unable to get info about radio\n");
+		return 1;
+	}
+
+	return 0;
+}
+
+
+
+static
+void print_device_info(BLUETOOTH_DEVICE_INFO_STRUCT* device, const char* addr)
+{
+	SYSTEMTIME ls = device->stLastSeen, lu = device->stLastUsed;
+	char last_used[24] = { 0 };
+	format_systemtime(last_used, lu);
+
+	wprintf(
+		L"%s (%u):\n"
+		"\tAddress: \t\t%hs\n"
+		"\tConnected:\t\t%s\n"
+		"\tAuthentificated:\t%s\n"
+		"\tRemembered:\t\t%s\n"
+		"\tLast Seen: \t\t%hd-%02hd-%02hd %02hd:%02hd:%02hd.%03hd\n"
+		"\tLast Used: \t\t%hs\n"
+		"\n"
+		,
+		MBNAME(device->szName),
+		device->ulClassofDevice,
+		addr,
+		WYESNO(device->fConnected),
+		WYESNO(device->fAuthenticated),
+		WYESNO(device->fRemembered),
+		ls.wYear, ls.wMonth, ls.wDay, ls.wHour, ls.wMinute, ls.wSecond, ls.wMilliseconds,
+		last_used
+	);
+}
+
+int bluehook_scan(bth_scan_query_t* query)
+{
+	BLUETOOTH_DEVICE_SEARCH_PARAMS params = {
+		.dwSize					= sizeof(BLUETOOTH_DEVICE_SEARCH_PARAMS),
+		.cTimeoutMultiplier		= (int)(query->timeout / 1.28),
+		.fReturnConnected		= query->connected,
+		.fReturnAuthenticated	= query->authetificated,
+		.fReturnRemembered		= query->remembered,
+		.fReturnUnknown			= query->unknown,
+		.fIssueInquiry			= TRUE,
+		.hRadio					= NULL
+	};
+
+	BLUETOOTH_DEVICE_INFO_STRUCT device = { sizeof(BLUETOOTH_DEVICE_INFO_STRUCT) };
+	HBLUETOOTH_DEVICE_FIND hFind = BluetoothFindFirstDevice(&params, &device);
+	if (hFind)
+	{
+		printf("Found Bluetooth devices:\n\n");
+		do
+		{
+			if (BluetoothUpdateDeviceRecord(&device) == ERROR_SUCCESS);
+			char addr[18] = { 0 };
+			addr2str(addr, device.Address);
+
+			if (query->do_info)
+				print_device_info(&device, addr);
+			else
+			{
+				wprintf(
+					L"%s (%hs)\n",
+					MBNAME(device.szName),
+					addr
+				);
+			}
+			
+			device.dwSize = sizeof(BLUETOOTH_DEVICE_INFO_STRUCT);
+		} while (BluetoothFindNextDevice(hFind, &device));
+		BluetoothFindDeviceClose(hFind);
+	}
+	else
+	{
+		fprintf(stderr, "Unable to find bluetooth devices\n");
+		return 1;
+	}
+
+	return 0;
+}
+
+
+int bluehook_device_info(const char* addr)
+{
+	BLUETOOTH_ADDRESS_STRUCT bth_addr = str2addr(addr);
+	BLUETOOTH_DEVICE_INFO_STRUCT device = { sizeof(BLUETOOTH_DEVICE_INFO_STRUCT) };
+	device.Address = bth_addr;
+
+	if (BluetoothGetDeviceInfo(NULL, &device) != ERROR_SUCCESS)
+	{
+		printf("Failed to locate the device %s\n", addr);
+		return 1;
+	}
+
+	if (BluetoothUpdateDeviceRecord(&device) == ERROR_SUCCESS);
+
+	print_device_info(&device, addr);
+
+	return 0;
+}
+
+int bluehook_remove(const char* addr)
+{
+	BLUETOOTH_ADDRESS_STRUCT bth_addr = str2addr(addr);
+	if (BluetoothRemoveDevice(&bth_addr) == ERROR_SUCCESS)
+	{
+		printf("Device %s was removed successfully\n", addr);
+		return 0;
+	}
+	else
+	{
+		printf("Error occured during the removal\n");
+		return 1;
+	}
+}
+
+static
+BOOL CALLBACK bluehook_auth_callback(LPVOID pvParam, 
+	PBLUETOOTH_AUTHENTICATION_CALLBACK_PARAMS pAuthCallbackParams)
+{
+	BLUETOOTH_AUTHENTICATE_RESPONSE response = { 0 };
+	response.bthAddressRemote = pAuthCallbackParams->deviceInfo.Address;
+	response.authMethod = pAuthCallbackParams->authenticationMethod;
+
+	if (pAuthCallbackParams->authenticationMethod == BLUETOOTH_AUTHENTICATION_METHOD_NUMERIC_COMPARISON)
+	{
+		response.numericCompInfo.NumericValue = pAuthCallbackParams->Numeric_Value;
+		printf("Numeric comparison: %u\n", pAuthCallbackParams->Numeric_Value);
+	}
+	else if (pAuthCallbackParams->authenticationMethod == BLUETOOTH_AUTHENTICATION_METHOD_PASSKEY)
+	{
+		response.passkeyInfo.passkey = pAuthCallbackParams->Passkey;
+		printf("Passkey: %u\n", pAuthCallbackParams->Passkey);
+	}
+
+	int result = BluetoothSendAuthenticationResponseEx(NULL, &response);
+	return result == ERROR_SUCCESS;
+}
+
+
+int bluehook_auth(bth_auth_query_t* auth_query)
+{
+	BLUETOOTH_DEVICE_INFO_STRUCT device = { sizeof(BLUETOOTH_DEVICE_INFO_STRUCT) };
+	device.Address = str2addr(auth_query->addr);
+
+	if (BluetoothGetDeviceInfo(NULL, &device) != ERROR_SUCCESS)
+	{
+		printf("Failed to locate the device %s\n", auth_query->addr);
+		return 1;
+	}
+
+	HBLUETOOTH_AUTHENTICATION_REGISTRATION hReg = NULL;
+	if (BluetoothRegisterForAuthenticationEx(&device, &hReg, &bluehook_auth_callback, NULL) != ERROR_SUCCESS)
+	{
+		printf("Failed to configure authentification callback\n");
+		return 1;
+	}
+
+	int res = BluetoothAuthenticateDeviceEx(NULL, NULL, &device, NULL, MITMProtectionRequired);
+	switch (res)
+	{
+	case ERROR_SUCCESS:
+		wprintf(L"Successfully paired with the device '%s' (%hs)\n", MBNAME(device.szName), auth_query->addr);
+		break;
+	case ERROR_CANCELLED: case 1244:
+		printf("Devices refused to pair\n");
+		break;
+	case ERROR_NO_MORE_ITEMS:
+		printf("Device is alread paired\n");
+		break;
+	case 258:
+		printf("Timeout\n");
+		break;
+	default:
+		printf("Unrecognized exception caught: %d\n", res);
+		break;
+	}
+
+	BluetoothUnregisterAuthentication(hReg);
+	return 0;
+}
