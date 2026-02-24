@@ -9,10 +9,12 @@ typedef struct
 
 typedef struct
 {
-	char connectable, discoverable;
+	char connectable, discoverable;   // 0 - do nothing, 1 - change to 1, 2 - change to 0
 } bth_radio_query_t;
 
 typedef struct
 {
 	char addr[18];
+	int timeout;
+	char mitm_protection_policy[4];
 } bth_auth_query_t;

@@ -8,7 +8,7 @@
 #pragma comment(lib, "Bthprops.lib")
 
 
-#define WYESNO(cond) (cond) ? L"Yes" : L"No"
+#define YESNO(cond) (cond) ? "Yes" : "No"
 
 #define MBNAME(name) name[0] ? name : L"[UNDEFINED]"
 
@@ -31,13 +31,25 @@ BLUETOOTH_ADDRESS_STRUCT str2addr(const char* addr)
 }
 
 static
-int format_systemtime(char* buff, SYSTEMTIME st)
+void format_systemtime(char* buff, SYSTEMTIME st)
 {
 	if (st.wYear == 1601)
 		sprintf_s(buff, 7, "[NONE]");
 	else
 		sprintf_s(buff, 24, "%hd-%02hd-%02hd %02hd:%02hd:%02hd.%03hd",
 			st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+}
+
+static
+AUTHENTICATION_REQUIREMENTS str2ar(const char* policy)
+{
+	if (!strcmp("r", policy))			return MITMProtectionRequired;
+	else if (!strcmp("rb", policy))		return MITMProtectionRequiredBonding;
+	else if (!strcmp("rg", policy))		return MITMProtectionRequiredGeneralBonding;
+	else if (!strcmp("nr", policy))		return MITMProtectionNotRequired;
+	else if (!strcmp("nrb", policy))	return MITMProtectionNotRequiredBonding;
+	else if (!strcmp("nrg", policy))	return MITMProtectionNotRequiredGeneralBonding;
+	else								return MITMProtectionNotDefined;
 }
 
 
@@ -56,44 +68,31 @@ int is_bluetooth_available()
 
 
 static
-int switch_radio_modes(bth_radio_query_t* query)
+int switch_radio_modes(bth_radio_query_t* query, HANDLE hRadio)
 {
-	/*
-	if (query->discoverable)
-	{
-		BOOL disc = BluetoothIsDiscoverable(NULL);
-		if (BluetoothEnableIncomingConnections(NULL, !disc))
-		{
-			printf("Successfully turned %s discovery\n", disc ? "off" : "on");
-			return 0;
-		}
-		else
-		{
-			printf("Faield to update discovery\n");
-			return 1;
-		}
-	}
 	if (query->connectable)
 	{
-		BOOL conn = BluetoothIsConnectable(NULL);
-		if (BluetoothEnableIncomingConnections(NULL, !conn))
-		{
-			printf("Successfully turned %s incoming connections\n", conn ? "off" : "on");
-			return 0;
-		}
+		if (BluetoothEnableIncomingConnections(hRadio, query->connectable == 1))
+			printf("Successfully %s incoming connections\n",
+				query->connectable == 1 ? "enabled" : "disabled");
 		else
-		{
-			printf("Faield to update incoming connections\n");
-			return 1;
-		}
+			printf("Failed to %s incoming connections\n", 
+				query->connectable == 1 ? "enable" : "disable");
 	}
-	*/
+	if (query->discoverable)
+	{
+		if (BluetoothEnableDiscovery(hRadio, query->discoverable == 1))
+			printf("Successfully %s discovery\n",
+				query->discoverable == 1 ? "enabled" : "disabled");
+		else
+			printf("Failed to %s discovery\n",
+				query->discoverable == 1 ? "enable" : "disable");
+	}
 	return 0;
 }
+
 int bluehook_radio_info(bth_radio_query_t* query)
 {
-	if (query->connectable || query->discoverable) return switch_radio_modes(query);
-
 	HANDLE hRadio;
 	BLUETOOTH_FIND_RADIO_PARAMS params = { sizeof(BLUETOOTH_FIND_RADIO_PARAMS) };
 	BLUETOOTH_RADIO_INFO radio_info = { sizeof(BLUETOOTH_RADIO_INFO) };
@@ -104,25 +103,30 @@ int bluehook_radio_info(bth_radio_query_t* query)
 		{
 			if (BluetoothGetRadioInfo(hRadio, &radio_info) == ERROR_SUCCESS)
 			{
-				char addr[18] = { 0 };
-				addr2str(addr, radio_info.address);
+				if (query->connectable || query->discoverable)
+					switch_radio_modes(query, hRadio);
+				else
+				{
+					char addr[18] = { 0 };
+					addr2str(addr, radio_info.address);
 
-				wprintf(
-					L"%s (%u):\n"
-					"\tAddress:\t\t%hs\n"
-					"\tManufacturer:\t\t%hd\n"			
-					"\tLMP Subversion:\t\t%hd\n"
-					"\tConnectable:\t\t%s\n"
-					"\tDiscoverable:\t\t%s\n"
-					"\n"
-					,
-					MBNAME(radio_info.szName),
-					radio_info.ulClassofDevice,
-					addr,
-					radio_info.manufacturer, radio_info.lmpSubversion,
-					WYESNO(BluetoothIsConnectable(hRadio)),
-					WYESNO(BluetoothIsDiscoverable(hRadio))
-				);
+					wprintf(
+						L"%s (%u):\n"
+						"\tAddress:\t\t%hs\n"
+						"\tManufacturer:\t\t%hd\n"
+						"\tLMP Subversion:\t\t%hd\n"
+						"\tConnectable:\t\t%hs\n"
+						"\tDiscoverable:\t\t%hs\n"
+						"\n"
+						,
+						MBNAME(radio_info.szName),
+						radio_info.ulClassofDevice,
+						addr,
+						radio_info.manufacturer, radio_info.lmpSubversion,
+						YESNO(BluetoothIsConnectable(hRadio)),
+						YESNO(BluetoothIsDiscoverable(hRadio))
+					);
+				}
 			}
 
 		} while (BluetoothFindNextRadio(hFind, &hRadio));
@@ -149,9 +153,9 @@ void print_device_info(BLUETOOTH_DEVICE_INFO_STRUCT* device, const char* addr)
 	wprintf(
 		L"%s (%u):\n"
 		"\tAddress: \t\t%hs\n"
-		"\tConnected:\t\t%s\n"
-		"\tAuthentificated:\t%s\n"
-		"\tRemembered:\t\t%s\n"
+		"\tConnected:\t\t%hs\n"
+		"\tAuthentificated:\t%hs\n"
+		"\tRemembered:\t\t%hs\n"
 		"\tLast Seen: \t\t%hd-%02hd-%02hd %02hd:%02hd:%02hd.%03hd\n"
 		"\tLast Used: \t\t%hs\n"
 		"\n"
@@ -159,9 +163,9 @@ void print_device_info(BLUETOOTH_DEVICE_INFO_STRUCT* device, const char* addr)
 		MBNAME(device->szName),
 		device->ulClassofDevice,
 		addr,
-		WYESNO(device->fConnected),
-		WYESNO(device->fAuthenticated),
-		WYESNO(device->fRemembered),
+		YESNO(device->fConnected),
+		YESNO(device->fAuthenticated),
+		YESNO(device->fRemembered),
 		ls.wYear, ls.wMonth, ls.wDay, ls.wHour, ls.wMinute, ls.wSecond, ls.wMilliseconds,
 		last_used
 	);
@@ -257,6 +261,7 @@ BOOL CALLBACK bluehook_auth_callback(LPVOID pvParam,
 	BLUETOOTH_AUTHENTICATE_RESPONSE response = { 0 };
 	response.bthAddressRemote = pAuthCallbackParams->deviceInfo.Address;
 	response.authMethod = pAuthCallbackParams->authenticationMethod;
+	response.negativeResponse = FALSE;
 
 	if (pAuthCallbackParams->authenticationMethod == BLUETOOTH_AUTHENTICATION_METHOD_NUMERIC_COMPARISON)
 	{
@@ -279,12 +284,6 @@ int bluehook_auth(bth_auth_query_t* auth_query)
 	BLUETOOTH_DEVICE_INFO_STRUCT device = { sizeof(BLUETOOTH_DEVICE_INFO_STRUCT) };
 	device.Address = str2addr(auth_query->addr);
 
-	if (BluetoothGetDeviceInfo(NULL, &device) != ERROR_SUCCESS)
-	{
-		printf("Failed to locate the device %s\n", auth_query->addr);
-		return 1;
-	}
-
 	HBLUETOOTH_AUTHENTICATION_REGISTRATION hReg = NULL;
 	if (BluetoothRegisterForAuthenticationEx(&device, &hReg, &bluehook_auth_callback, NULL) != ERROR_SUCCESS)
 	{
@@ -292,24 +291,23 @@ int bluehook_auth(bth_auth_query_t* auth_query)
 		return 1;
 	}
 
-	int res = BluetoothAuthenticateDeviceEx(NULL, NULL, &device, NULL, MITMProtectionRequired);
-	switch (res)
+	AUTHENTICATION_REQUIREMENTS ar = str2ar(auth_query->mitm_protection_policy);
+	int res = BluetoothAuthenticateDeviceEx(NULL, NULL, &device, NULL, ar);
+
+	if (res == ERROR_SUCCESS)
 	{
-	case ERROR_SUCCESS:
-		wprintf(L"Successfully paired with the device '%s' (%hs)\n", MBNAME(device.szName), auth_query->addr);
-		break;
-	case ERROR_CANCELLED: case 1244:
-		printf("Devices refused to pair\n");
-		break;
-	case ERROR_NO_MORE_ITEMS:
-		printf("Device is alread paired\n");
-		break;
-	case 258:
-		printf("Timeout\n");
-		break;
-	default:
-		printf("Unrecognized exception caught: %d\n", res);
-		break;
+		if (BluetoothGetDeviceInfo(NULL, &device) == ERROR_SUCCESS)
+		{
+			if (device.fAuthenticated) wprintf(L"Successfully paired with '%s' (%hs)\n", 
+				MBNAME(device.szName), auth_query->addr);
+			else printf("Something went wrong.\nTry change MITM protection policy. Use -m=...\n");
+		}
+	}
+	else
+	{
+		printf("Initiate request failed: %d\n", res);
+		if (res == ERROR_NOT_AUTHENTICATED) printf("Device refused to pair\n");
+		else if (res == ERROR_INVALID_PARAMETER) printf("MITM protection policy not defined. Use -m=...\n");
 	}
 
 	BluetoothUnregisterAuthentication(hReg);
