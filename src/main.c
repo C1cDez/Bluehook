@@ -5,6 +5,7 @@
 #include "argquery.h"
 #include "bluehook.h"
 
+
 static
 int contain_arg(int argc, char** argv, const char* key)
 {
@@ -71,6 +72,15 @@ int execute(int argc, char** argv)
 			return 1;
 		}
 		bluehook_device_info(argv[1]);
+	}
+	else if (!strcmp("--clofdev", subcommand))
+	{
+		if (argc <= 1)
+		{
+			fprintf(stderr, "Expected address XX:XX:XX:XX:XX:XX of device to get info from\n");
+			return 1;
+		}
+		bluehook_class_of_device_info(argv[1]);
 	}
 	else if (!strcmp("--remove", subcommand))
 	{
@@ -139,6 +149,7 @@ int main(int argc, char** argv)
 			"\t\t-i\t\t\t\tShows full information about the device\n"
 			"\n"
 			"\t--info [addr]\t\t\tShows info about device\n"
+			"\t--clofdev [addr]\t\tShows full info about device class\n"
 			"\n"
 			"\t--remove [addr]\t\t\tRemoves authentification bewteen device and a computer\n"
 			"\n"

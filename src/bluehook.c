@@ -5,6 +5,8 @@
 #include <Windows.h>
 #include <BluetoothAPIs.h>
 
+#include "clofdev.h"
+
 #pragma comment(lib, "Bthprops.lib")
 
 
@@ -97,47 +99,51 @@ int bluehook_radio_info(bth_radio_query_t* query)
 	BLUETOOTH_FIND_RADIO_PARAMS params = { sizeof(BLUETOOTH_FIND_RADIO_PARAMS) };
 	BLUETOOTH_RADIO_INFO radio_info = { sizeof(BLUETOOTH_RADIO_INFO) };
 	HBLUETOOTH_RADIO_FIND hFind = BluetoothFindFirstRadio(&params, &hRadio);
-	if (hFind)
-	{
-		do
-		{
-			if (BluetoothGetRadioInfo(hRadio, &radio_info) == ERROR_SUCCESS)
-			{
-				if (query->connectable || query->discoverable)
-					switch_radio_modes(query, hRadio);
-				else
-				{
-					char addr[18] = { 0 };
-					addr2str(addr, radio_info.address);
 
-					wprintf(
-						L"%s (%u):\n"
-						"\tAddress:\t\t%hs\n"
-						"\tManufacturer:\t\t%hd\n"
-						"\tLMP Subversion:\t\t%hd\n"
-						"\tConnectable:\t\t%hs\n"
-						"\tDiscoverable:\t\t%hs\n"
-						"\n"
-						,
-						MBNAME(radio_info.szName),
-						radio_info.ulClassofDevice,
-						addr,
-						radio_info.manufacturer, radio_info.lmpSubversion,
-						YESNO(BluetoothIsConnectable(hRadio)),
-						YESNO(BluetoothIsDiscoverable(hRadio))
-					);
-				}
-			}
-
-		} while (BluetoothFindNextRadio(hFind, &hRadio));
-		BluetoothFindRadioClose(hFind);
-	}
-	else
+	if (!hFind)
 	{
 		fprintf(stderr, "Unable to get info about radio\n");
 		return 1;
 	}
 
+	do
+	{
+		if (BluetoothGetRadioInfo(hRadio, &radio_info) == ERROR_SUCCESS)
+		{
+			if (query->connectable || query->discoverable)
+				switch_radio_modes(query, hRadio);
+			else
+			{
+				char addr[18] = { 0 };
+				addr2str(addr, radio_info.address);
+				char cod[128] = { 0 };
+				class_of_device_easy(radio_info.ulClassofDevice, cod, 128);
+
+				wprintf(
+					L"%s:\n"
+					"\tAddress:\t\t%hs\n"
+					"\tDevice:\t\t\t%hs (%u)\n"
+					"\tManufacturer:\t\t%hs (%hd)\n"
+					"\tLMP Subversion:\t\t%hd\n"
+					"\tConnectable:\t\t%hs\n"
+					"\tDiscoverable:\t\t%hs\n"
+					"\n"
+					,
+					MBNAME(radio_info.szName),
+					addr,
+					cod, radio_info.ulClassofDevice,
+					manufacturer(radio_info.manufacturer), radio_info.manufacturer,
+					radio_info.lmpSubversion,
+					YESNO(BluetoothIsConnectable(hRadio)),
+					YESNO(BluetoothIsDiscoverable(hRadio))
+				);
+			}
+		}
+
+	}
+	while (BluetoothFindNextRadio(hFind, &hRadio));
+
+	BluetoothFindRadioClose(hFind);
 	return 0;
 }
 
@@ -149,10 +155,13 @@ void print_device_info(BLUETOOTH_DEVICE_INFO_STRUCT* device, const char* addr)
 	SYSTEMTIME ls = device->stLastSeen, lu = device->stLastUsed;
 	char last_used[24] = { 0 };
 	format_systemtime(last_used, lu);
+	char cod[128] = { 0 };
+	class_of_device_easy(device->ulClassofDevice, cod, 128);
 
 	wprintf(
-		L"%s (%u):\n"
+		L"%s:\n"
 		"\tAddress: \t\t%hs\n"
+		"\tDevice: \t\t%hs\n"
 		"\tConnected:\t\t%hs\n"
 		"\tAuthentificated:\t%hs\n"
 		"\tRemembered:\t\t%hs\n"
@@ -161,8 +170,8 @@ void print_device_info(BLUETOOTH_DEVICE_INFO_STRUCT* device, const char* addr)
 		"\n"
 		,
 		MBNAME(device->szName),
-		device->ulClassofDevice,
 		addr,
+		cod,
 		YESNO(device->fConnected),
 		YESNO(device->fAuthenticated),
 		YESNO(device->fRemembered),
@@ -186,36 +195,36 @@ int bluehook_scan(bth_scan_query_t* query)
 
 	BLUETOOTH_DEVICE_INFO_STRUCT device = { sizeof(BLUETOOTH_DEVICE_INFO_STRUCT) };
 	HBLUETOOTH_DEVICE_FIND hFind = BluetoothFindFirstDevice(&params, &device);
-	if (hFind)
-	{
-		printf("Found Bluetooth devices:\n\n");
-		do
-		{
-			if (BluetoothUpdateDeviceRecord(&device) == ERROR_SUCCESS);
-			char addr[18] = { 0 };
-			addr2str(addr, device.Address);
 
-			if (query->do_info)
-				print_device_info(&device, addr);
-			else
-			{
-				wprintf(
-					L"%s (%hs)\n",
-					MBNAME(device.szName),
-					addr
-				);
-			}
-			
-			device.dwSize = sizeof(BLUETOOTH_DEVICE_INFO_STRUCT);
-		} while (BluetoothFindNextDevice(hFind, &device));
-		BluetoothFindDeviceClose(hFind);
-	}
-	else
+	if (!hFind)
 	{
 		fprintf(stderr, "Unable to find bluetooth devices\n");
 		return 1;
 	}
 
+	printf("Found Bluetooth devices:\n\n");
+	do
+	{
+		if (BluetoothUpdateDeviceRecord(&device) == ERROR_SUCCESS);
+		char addr[18] = { 0 };
+		addr2str(addr, device.Address);
+
+		if (query->do_info)
+			print_device_info(&device, addr);
+		else
+		{
+			wprintf(
+				L"%s (%hs)\n",
+				MBNAME(device.szName),
+				addr
+			);
+		}
+			
+		device.dwSize = sizeof(BLUETOOTH_DEVICE_INFO_STRUCT);
+	}
+	while (BluetoothFindNextDevice(hFind, &device));
+	
+	BluetoothFindDeviceClose(hFind);
 	return 0;
 }
 
@@ -235,6 +244,26 @@ int bluehook_device_info(const char* addr)
 	if (BluetoothUpdateDeviceRecord(&device) == ERROR_SUCCESS);
 
 	print_device_info(&device, addr);
+
+	return 0;
+}
+
+int bluehook_class_of_device_info(const char* addr)
+{
+	BLUETOOTH_ADDRESS_STRUCT bth_addr = str2addr(addr);
+	BLUETOOTH_DEVICE_INFO_STRUCT device = { sizeof(BLUETOOTH_DEVICE_INFO_STRUCT) };
+	device.Address = bth_addr;
+
+	if (BluetoothGetDeviceInfo(NULL, &device) != ERROR_SUCCESS)
+	{
+		printf("Failed to locate the device %s\n", addr);
+		return 1;
+	}
+
+	if (BluetoothUpdateDeviceRecord(&device) == ERROR_SUCCESS);
+
+	wprintf(L"%s:   [", device.szName);
+	class_of_device_full(device.ulClassofDevice);
 
 	return 0;
 }
