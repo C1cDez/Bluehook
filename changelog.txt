@@ -1,5 +1,8 @@
 26.02.2026
 	- Implemented shell mode
+	- Merged --clofdev into --info
+		* All services are disaplyed within --info
+		* --clofdev is deprecated
 
 25.02.2026
 	- Text representation of "class of device"

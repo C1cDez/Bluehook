@@ -265,46 +265,38 @@ const char* name_minor(class_of_device_t cod)
 	}
 }
 
-void class_of_device_easy(unsigned ucod, char* buff, int size)
+
+#define YESNO(cond) (cond) ? "Yes" : "No"
+
+void class_of_device_format(unsigned ucod, char* buff, int size, const char* param_prefix)
 {
 	class_of_device_t cod = { .classofdevice = ucod };
-	strcat_s(buff, size, name_major(cod));
-	strcat_s(buff, size, " - ");
-	strcat_s(buff, size, name_minor(cod));
-}
-
-#define YESNO(cond) (cond) ? "\x1b[32mYes\x1b[0m" : "\x1b[31mNo\x1b[0m"
-
-void class_of_device_full(unsigned ucod)
-{
-	class_of_device_t cod = { .classofdevice = ucod };
-	char buff[128] = { 0 };
-	class_of_device_easy(ucod, buff, 128);
-	printf(buff);
 	unsigned service = cod.service;
 
-	printf(
-		"]\n"
-		"\tLimited Discovery:\t%s\n"
-		"\tLow Energy Audio:\t%s\n"
-		"\tPositioning:\t\t%s\n"
-		"\tNetworking:\t\t%s\n"
-		"\tRendering:\t\t%s\n"
-		"\tCapturing:\t\t%s\n"
-		"\tObject-Transfer:\t%s\n"
-		"\tAudio:\t\t\t%s\n"
-		"\tTelephony:\t\t%s\n"
-		"\tInformation (WEB):\t%s\n"
+	sprintf_s(buff, size,
+		"%s - %s\n"
+		"\tServices:\n"
+		"%sLimited Discovery:\t%s\n"
+		"%sLow Energy Audio:\t%s\n"
+		"%sPositioning:\t\t%s\n"
+		"%sNetworking:\t\t%s\n"
+		"%sRendering:\t\t%s\n"
+		"%sCapturing:\t\t%s\n"
+		"%sObject-Transfer:\t%s\n"
+		"%sAudio:\t\t%s\n"
+		"%sTelephony:\t\t%s\n"
+		"%sInformation (WEB):\t%s"
 		,
-		YESNO(service & 0x000001),
-		YESNO(service & 0x000002),
-		YESNO(service & 0x000008),
-		YESNO(service & 0x000010),
-		YESNO(service & 0x000020),
-		YESNO(service & 0x000040),
-		YESNO(service & 0x000080),
-		YESNO(service & 0x000100),
-		YESNO(service & 0x000200),
-		YESNO(service & 0x000400)
+		name_major(cod), name_minor(cod),
+		param_prefix, YESNO(service & 0x000001),
+		param_prefix, YESNO(service & 0x000002),
+		param_prefix, YESNO(service & 0x000008),
+		param_prefix, YESNO(service & 0x000010),
+		param_prefix, YESNO(service & 0x000020),
+		param_prefix, YESNO(service & 0x000040),
+		param_prefix, YESNO(service & 0x000080),
+		param_prefix, YESNO(service & 0x000100),
+		param_prefix, YESNO(service & 0x000200),
+		param_prefix, YESNO(service & 0x000400)
 	);
 }

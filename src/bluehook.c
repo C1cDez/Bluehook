@@ -131,13 +131,13 @@ int bluehook_radio_info(bth_radio_query_t* query)
 			{
 				char addr[18] = { 0 };
 				addr2str(addr, radio_info.address);
-				char cod[128] = { 0 };
-				class_of_device_easy(radio_info.ulClassofDevice, cod, 128);
+				char cod[512] = { 0 };
+				class_of_device_format(radio_info.ulClassofDevice, cod, 512, "\t- ");
 
 				wprintf(
 					L"%s:\n"
 					"\tAddress:\t\t%hs\n"
-					"\tDevice:\t\t\t%hs (%u)\n"
+					"\tDevice:\t\t\t%hs\n"
 					"\tManufacturer:\t\t%hs (%hd)\n"
 					"\tLMP Subversion:\t\t%hd\n"
 					"\tConnectable:\t\t%hs\n"
@@ -146,7 +146,7 @@ int bluehook_radio_info(bth_radio_query_t* query)
 					,
 					MBNAME(radio_info.szName),
 					addr,
-					cod, radio_info.ulClassofDevice,
+					cod,
 					manufacturer(radio_info.manufacturer), radio_info.manufacturer,
 					radio_info.lmpSubversion,
 					YESNO(BluetoothIsConnectable(hRadio)),
@@ -168,10 +168,11 @@ static
 void print_device_info(BLUETOOTH_DEVICE_INFO_STRUCT* device, const char* addr)
 {
 	SYSTEMTIME ls = device->stLastSeen, lu = device->stLastUsed;
-	char last_used[24] = { 0 };
+	char last_seen[24] = { 0 }, last_used[24] = { 0 };
+	format_systemtime(last_seen, ls);
 	format_systemtime(last_used, lu);
-	char cod[128] = { 0 };
-	class_of_device_easy(device->ulClassofDevice, cod, 128);
+	char cod[512] = { 0 };
+	class_of_device_format(device->ulClassofDevice, cod, 512, "\t- ");
 
 	wprintf(
 		L"%s:\n"
@@ -180,7 +181,7 @@ void print_device_info(BLUETOOTH_DEVICE_INFO_STRUCT* device, const char* addr)
 		"\tConnected:\t\t%hs\n"
 		"\tAuthentificated:\t%hs\n"
 		"\tRemembered:\t\t%hs\n"
-		"\tLast Seen: \t\t%hd-%02hd-%02hd %02hd:%02hd:%02hd.%03hd\n"
+		"\tLast Seen: \t\t%hs\n"
 		"\tLast Used: \t\t%hs\n"
 		"\n"
 		,
@@ -190,8 +191,7 @@ void print_device_info(BLUETOOTH_DEVICE_INFO_STRUCT* device, const char* addr)
 		YESNO(device->fConnected),
 		YESNO(device->fAuthenticated),
 		YESNO(device->fRemembered),
-		ls.wYear, ls.wMonth, ls.wDay, ls.wHour, ls.wMinute, ls.wSecond, ls.wMilliseconds,
-		last_used
+		last_seen, last_used
 	);
 }
 
@@ -259,26 +259,6 @@ int bluehook_device_info(const char* addr)
 	if (BluetoothUpdateDeviceRecord(&device) == ERROR_SUCCESS);
 
 	print_device_info(&device, addr);
-
-	return 0;
-}
-
-int bluehook_class_of_device_info(const char* addr)
-{
-	BLUETOOTH_ADDRESS_STRUCT bth_addr = str2addr(addr);
-	BLUETOOTH_DEVICE_INFO_STRUCT device = { sizeof(BLUETOOTH_DEVICE_INFO_STRUCT) };
-	device.Address = bth_addr;
-
-	if (BluetoothGetDeviceInfo(NULL, &device) != ERROR_SUCCESS)
-	{
-		printf("Failed to locate the device %s\n", addr);
-		return 1;
-	}
-
-	if (BluetoothUpdateDeviceRecord(&device) == ERROR_SUCCESS);
-
-	wprintf(L"%s:   [", device.szName);
-	class_of_device_full(device.ulClassofDevice);
 
 	return 0;
 }

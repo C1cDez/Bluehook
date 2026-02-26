@@ -5,6 +5,7 @@ typedef struct
 	int timeout;
 	char connected, authetificated, remembered, unknown;
 	char do_info;
+	char do_cache;
 } bth_scan_query_t;
 
 typedef struct

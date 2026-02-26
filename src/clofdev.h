@@ -7,5 +7,4 @@ const char* manufacturer(unsigned man);
 
 // https://www.ampedrftech.com/datasheets/cod_definition.pdf
 // Assigned Numbers - 2.8 Class of Device - p 46
-void class_of_device_easy(unsigned cod, char* buff, int size);
-void class_of_device_full(unsigned cod);
+void class_of_device_format(unsigned cod, char* buff, int size, const char* param_prefix);
