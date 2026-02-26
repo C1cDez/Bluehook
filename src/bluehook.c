@@ -72,23 +72,38 @@ int is_bluetooth_available()
 static
 int switch_radio_modes(bth_radio_query_t* query, HANDLE hRadio)
 {
-	if (query->connectable)
+	int connectable = BluetoothIsConnectable(hRadio), discoverable = BluetoothIsDiscoverable(hRadio);
+	if (connectable | discoverable);
+
+	if (query->connectability)
 	{
-		if (BluetoothEnableIncomingConnections(hRadio, query->connectable == 1))
-			printf("Successfully %s incoming connections\n",
-				query->connectable == 1 ? "enabled" : "disabled");
+		int query_con = query->connectability == 1;
+		if (!connectable == !query_con)
+			printf("Radio is already %s\n", connectable ? "connectable" : "not-connectable");
 		else
-			printf("Failed to %s incoming connections\n", 
-				query->connectable == 1 ? "enable" : "disable");
+		{
+			if (BluetoothEnableIncomingConnections(hRadio, query_con))
+				printf("Successfully %s incoming connections\n",
+					query_con ? "enabled" : "disabled");
+			else
+				printf("Failed to %s incoming connections. Error: %x\n",
+					query_con ? "enable" : "disable", GetLastError());
+		}
 	}
-	if (query->discoverable)
+	if (query->discoverability)
 	{
-		if (BluetoothEnableDiscovery(hRadio, query->discoverable == 1))
-			printf("Successfully %s discovery\n",
-				query->discoverable == 1 ? "enabled" : "disabled");
+		int query_dis = query->discoverability == 1;
+		if (!discoverable == !query_dis)
+			printf("Radio is already %s\n", discoverable ? "discoverable" : "not-discoverable");
 		else
-			printf("Failed to %s discovery\n",
-				query->discoverable == 1 ? "enable" : "disable");
+		{
+			if (BluetoothEnableDiscovery(hRadio, query_dis))
+				printf("Successfully %s discovery\n",
+					query_dis ? "enabled" : "disabled");
+			else
+				printf("Failed to %s discovery. Error: %x\n",
+					query_dis ? "enable" : "disable", GetLastError());
+		}
 	}
 	return 0;
 }
@@ -110,7 +125,7 @@ int bluehook_radio_info(bth_radio_query_t* query)
 	{
 		if (BluetoothGetRadioInfo(hRadio, &radio_info) == ERROR_SUCCESS)
 		{
-			if (query->connectable || query->discoverable)
+			if (query->connectability || query->discoverability)
 				switch_radio_modes(query, hRadio);
 			else
 			{

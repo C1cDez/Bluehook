@@ -1,3 +1,6 @@
+26.02.2026
+	- Implemented shell mode
+
 25.02.2026
 	- Text representation of "class of device"
 	- Text representation of manufacturer
@@ -6,6 +9,8 @@
 	- Published to GitHub
 	- Fixed pairing issues
 		* Custom selection of MITM protection policy
+	- Fixed radio mode switching
+		* (still doesn't work properly)
 
 23.02.2026
 	- Added pairing

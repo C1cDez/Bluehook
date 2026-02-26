@@ -9,7 +9,10 @@ typedef struct
 
 typedef struct
 {
-	char connectable, discoverable;   // 0 - do nothing, 1 - change to 1, 2 - change to 0
+	// 0 - do nothing
+	// 1 - change to TRUE 
+	// 2 - change to FALSE
+	char connectability, discoverability;
 } bth_radio_query_t;
 
 typedef struct
