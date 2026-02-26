@@ -151,18 +151,22 @@ int bluehook_radio_info(bth_radio_query_t* query)
 			{
 				char addr[18] = { 0 };
 				addr2str(addr, radio_info.address);
-				char cod[512] = { 0 };
-				class_of_device_format(radio_info.ulClassofDevice, cod, 512, "\t- ");
+				char cod[1024] = { 0 };
+				cod_format_params_t cfp = {
+					.main_name = "%s - %s\n",
+					.service_header = "\tServices:\n",
+					.service = "\t- %-22s%-3s\n"
+				};
+				class_of_device_format(radio_info.ulClassofDevice, cod, 1024, &cfp);
 
 				wprintf(
 					L"%s:\n"
 					"\tAddress:\t\t%hs\n"
-					"\tDevice:\t\t\t%hs\n"
+					"\tDevice:\t\t\t%hs"
 					"\tManufacturer:\t\t%hs (%hd)\n"
 					"\tLMP Subversion:\t\t%hd\n"
 					"\tConnectable:\t\t%hs\n"
 					"\tDiscoverable:\t\t%hs\n"
-					"\n"
 					,
 					MBNAME(radio_info.szName),
 					addr,
@@ -183,36 +187,72 @@ int bluehook_radio_info(bth_radio_query_t* query)
 }
 
 
+typedef struct
+{
+	const wchar_t* name;		// %s
+	const char* address;		// %s
+	cod_format_params_t cod_format;
+	const char* bindings;		// %s, %s
+	const char* times;			// %s, %s
+} device_display_params_t;
 
 static
-void print_device_info(BLUETOOTH_DEVICE_INFO_STRUCT* device, const char* addr)
-{
-	SYSTEMTIME ls = device->stLastSeen, lu = device->stLastUsed;
-	char last_seen[24] = { 0 }, last_used[24] = { 0 };
-	format_systemtime(last_seen, ls);
-	format_systemtime(last_used, lu);
-	char cod[512] = { 0 };
-	class_of_device_format(device->ulClassofDevice, cod, 512, "\t- ");
+const device_display_params_t PREVIEW_INFO_DDP = {
+	.name = L"%-30s",
+	.address = "%-30s",
+	.cod_format = {
+		.main_name = "%s (%s)\n",
+		.service_header = NULL,
+		.service = NULL
+	},
+	.bindings = NULL,
+	.times = NULL
+};
+static
+const device_display_params_t FULL_INFO_DDP = {
+	.name = L"%s:\n",
+	.address = "\tAddress:%33s\n",
+	.cod_format = {
+		.main_name = "\tDevice:                 %s - %s\n",
+		.service_header = "\tServices:\n",
+		.service = "\t- %-22s%-3s\n"
+	},
+	.bindings = "\t%-24s%-3s\n",
+	.times = "\t%-24s%-3s\n"
+};
 
-	wprintf(
-		L"%s:\n"
-		"\tAddress: \t\t%hs\n"
-		"\tDevice: \t\t%hs\n"
-		"\tConnected:\t\t%hs\n"
-		"\tAuthentificated:\t%hs\n"
-		"\tRemembered:\t\t%hs\n"
-		"\tLast Seen: \t\t%hs\n"
-		"\tLast Used: \t\t%hs\n"
-		"\n"
-		,
-		MBNAME(device->szName),
-		addr,
-		cod,
-		YESNO(device->fConnected),
-		YESNO(device->fAuthenticated),
-		YESNO(device->fRemembered),
-		last_seen, last_used
-	);
+static
+void fprint_device_info(FILE* fp, BLUETOOTH_DEVICE_INFO_STRUCT* device, const device_display_params_t* ddp)
+{
+	fwprintf(fp, MBNAME(ddp->name), device->szName);
+	
+	if (ddp->address)
+	{
+		char addr[18] = { 0 };
+		addr2str(addr, device->Address);
+		fprintf(fp, ddp->address, addr);
+	}
+
+	char cod[1024] = { 0 };
+	class_of_device_format(device->ulClassofDevice, cod, 1024, &ddp->cod_format);
+	fprintf(fp, cod);
+
+	if (ddp->bindings)
+	{
+		fprintf(fp, ddp->bindings, "Connected",		YESNO(device->fConnected));
+		fprintf(fp, ddp->bindings, "Authenticated",	YESNO(device->fAuthenticated));
+		fprintf(fp, ddp->bindings, "Remembered",	YESNO(device->fRemembered));
+	}
+
+	if (ddp->times)
+	{
+		SYSTEMTIME ls = device->stLastSeen, lu = device->stLastUsed;
+		char last_seen[24] = { 0 }, last_used[24] = { 0 };
+		format_systemtime(last_seen, ls);
+		format_systemtime(last_used, lu);
+		fprintf(fp, ddp->times, "Last Seen", last_seen);
+		fprintf(fp, ddp->times, "Last Used", last_used);
+	}
 }
 
 int bluehook_scan(bth_scan_query_t* query)
@@ -241,19 +281,9 @@ int bluehook_scan(bth_scan_query_t* query)
 	do
 	{
 		if (BluetoothUpdateDeviceRecord(&device) == ERROR_SUCCESS);
-		char addr[18] = { 0 };
-		addr2str(addr, device.Address);
 
-		if (query->do_info)
-			print_device_info(&device, addr);
-		else
-		{
-			wprintf(
-				L"%s (%hs)\n",
-				MBNAME(device.szName),
-				addr
-			);
-		}
+		fprint_device_info(stdout, &device, query->do_info ? &FULL_INFO_DDP : &PREVIEW_INFO_DDP);
+		if (query->do_info) putchar('\n');
 
 		if (query->do_cache)
 			devlist_add(&device);
@@ -274,19 +304,8 @@ int bluehook_list(bth_list_query_t* query)
 	printf("Cached Bluetooth devices:\n\n");
 	while (devlist_next(&device))
 	{
-		char addr[18] = { 0 };
-		addr2str(addr, device.Address);
-
-		if (query->info)
-			print_device_info(&device, addr);
-		else
-		{
-			wprintf(
-				L"%s (%hs)\n",
-				MBNAME(device.szName),
-				addr
-			);
-		}
+		fprint_device_info(stdout, &device, query->info ? &FULL_INFO_DDP : &PREVIEW_INFO_DDP);
+		if (query->info) putchar('\n');
 	}
 	devlist_rewind();
 	return 0;
@@ -303,7 +322,7 @@ int device_info_local_cache(bth_info_query_t* query)
 	{
 		if (device.Address.ullLong == bth_addr.ullLong)
 		{
-			print_device_info(&device, query->addr);
+			fprint_device_info(stdout, &device, &FULL_INFO_DDP);
 			break;
 		}
 	}
@@ -327,7 +346,7 @@ int bluehook_device_info(bth_info_query_t* query)
 
 	if (BluetoothUpdateDeviceRecord(&device) == ERROR_SUCCESS);
 
-	print_device_info(&device, query->addr);
+	fprint_device_info(stdout, &device, &FULL_INFO_DDP);
 
 	return 0;
 }

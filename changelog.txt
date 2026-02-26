@@ -7,6 +7,8 @@
 		* Can store scanned data (scan --cache)
 		* Update --info params to specifiy priority between
 		  scan and local cache (-lc)
+	- Interruption signal catching to handle cleanup
+	- New device displaying algorithm
 
 25.02.2026
 	- Text representation of "class of device"

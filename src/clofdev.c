@@ -268,35 +268,42 @@ const char* name_minor(class_of_device_t cod)
 
 #define YESNO(cond) (cond) ? "Yes" : "No"
 
-void class_of_device_format(unsigned ucod, char* buff, int size, const char* param_prefix)
+void class_of_device_format(unsigned ucod, char* buff, int size, const cod_format_params_t* cfp)
 {
 	class_of_device_t cod = { .classofdevice = ucod };
-	unsigned service = cod.service;
 
-	sprintf_s(buff, size,
-		"%s - %s\n"
-		"\tServices:\n"
-		"%sLimited Discovery:\t%s\n"
-		"%sLow Energy Audio:\t%s\n"
-		"%sPositioning:\t\t%s\n"
-		"%sNetworking:\t\t%s\n"
-		"%sRendering:\t\t%s\n"
-		"%sCapturing:\t\t%s\n"
-		"%sObject-Transfer:\t%s\n"
-		"%sAudio:\t\t%s\n"
-		"%sTelephony:\t\t%s\n"
-		"%sInformation (WEB):\t%s"
-		,
-		name_major(cod), name_minor(cod),
-		param_prefix, YESNO(service & 0x000001),
-		param_prefix, YESNO(service & 0x000002),
-		param_prefix, YESNO(service & 0x000008),
-		param_prefix, YESNO(service & 0x000010),
-		param_prefix, YESNO(service & 0x000020),
-		param_prefix, YESNO(service & 0x000040),
-		param_prefix, YESNO(service & 0x000080),
-		param_prefix, YESNO(service & 0x000100),
-		param_prefix, YESNO(service & 0x000200),
-		param_prefix, YESNO(service & 0x000400)
-	);
+	if (cfp->main_name)
+	{
+		int off = sprintf_s(buff, size, cfp->main_name, name_major(cod), name_minor(cod));
+		buff += off;
+		size -= off;
+	}
+
+	if (cfp->service)
+	{
+		unsigned service = cod.service;
+		int off = sprintf_s(buff, size, cfp->service_header, "Services");
+		buff += off;
+		size -= off;
+
+#define INSERT_SERVICE(name, key) \
+do { \
+	int len = sprintf_s(buff, size, cfp->service, name, YESNO(service & key)); \
+	buff += len; \
+	size -= len; \
+} while (0);
+
+		INSERT_SERVICE("Limited Discovery", 0x000001);
+		INSERT_SERVICE("Low Eneragy Audio", 0x000002);
+		INSERT_SERVICE("Positioning", 0x000008);
+		INSERT_SERVICE("Networking", 0x000010);
+		INSERT_SERVICE("Rendering", 0x000020);
+		INSERT_SERVICE("Capturing", 0x000040);
+		INSERT_SERVICE("Object-Transfer", 0x000080);
+		INSERT_SERVICE("Audio", 0x000100);
+		INSERT_SERVICE("Telephony", 0x000200);
+		INSERT_SERVICE("Information (WEB)", 0x000400);
+
+#undef INSERT_SERVICE
+	}
 }

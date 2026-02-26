@@ -22,7 +22,7 @@ int shell_help(int argc, char** argv, int shellmode)
 				"radio ...\t\tShows info about your bluetooth radio\n"
 				"scan ...\t\tScans local area for bluetooth devices\n"
 				"list ...\t\tLists all cached devices (use --cache in scan)\n"
-				"info [addr] ...\tShows info about device\n"
+				"info [addr] ...\t\tShows info about device\n"
 				"remove [addr]\t\tRemoves authentification bewteen device and a computer\n"
 				"pair, auth [addr] ...\tSends authentification request to device\n"
 				"\n"
@@ -286,7 +286,7 @@ int shell_start()
 
 		const char* subcommand = argv[0];
 		if (!strcmp("exit", subcommand) || !strcmp("quit", subcommand)) break;
-		else if (!strcmp("help", subcommand)) shell_help(argc, argv, 1);
+		else if (!strcmp("help", subcommand) || !strcmp("?", subcommand)) shell_help(argc, argv, 1);
 		else if (!strcmp("clear", subcommand) || !strcmp("cls", subcommand)) system("cls");
 		else if (!strcmp("radio", subcommand)) shell_radio(argc, argv);
 		else if (!strcmp("scan", subcommand)) shell_scan(argc, argv);
