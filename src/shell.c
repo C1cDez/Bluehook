@@ -22,7 +22,7 @@ int shell_help(int argc, char** argv, int shellmode)
 				"radio ...\t\tShows info about your bluetooth radio\n"
 				"scan ...\t\tScans local area for bluetooth devices\n"
 				"list ...\t\tLists all cached devices (use --cache in scan)\n"
-				"info [addr]\t\tShows info about device\n"
+				"info [addr] ...\tShows info about device\n"
 				"remove [addr]\t\tRemoves authentification bewteen device and a computer\n"
 				"pair, auth [addr] ...\tSends authentification request to device\n"
 				"\n"
@@ -75,7 +75,14 @@ int shell_help(int argc, char** argv, int shellmode)
 			{
 				printf(
 					"list\n"
-					"\t-i\tShow full information about device\n"
+					"\t-i\t\tShow full information about device\n"
+				);
+			}
+			else if (!strcmp("info", subcommand))
+			{
+				printf(
+					"info\n"
+					"\t-lc\t\tForce to use local cache data rather than scan\n"
 				);
 			}
 			else
@@ -100,10 +107,11 @@ int shell_help(int argc, char** argv, int shellmode)
 			"\t\t-i\t\t\t\tShows full information about the device\n"
 			"\t\t--cache\t\t\t\tStore scanned data\n"
 			"\n"
-			"\t--list\t\t\t\tLists all cached devices (use --cache in scan)\n"
+			"\t--list\t\t\t\tShows cached devices\n"
 			"\t\t-i\t\t\t\tShows full information about the device\n"
 			"\n"
 			"\t--info [addr]\t\t\tShows info about device\n"
+			"\t\t-lc\t\t\t\tForce to use local cache data rather than scan\n"
 			"\n"
 			"\t--remove [addr]\t\t\tRemoves authentification bewteen device and a computer\n"
 			"\n"
@@ -189,7 +197,15 @@ static
 int shell_info(int argc, char** argv)
 {
 	ADDRESS_EXPECTED(argc, "to get info from");
-	return bluehook_device_info(argv[1]);
+	bth_info_query_t info_query = {
+		.addr = { 0 },
+		.force_lc = 0
+	};
+	memcpy(info_query.addr, argv[1], min(17, strlen(argv[1])));
+
+	if (contains_arg(argc, argv, "-lc") != -1) info_query.force_lc = 1;
+
+	return bluehook_device_info(&info_query);
 }
 
 static
@@ -231,8 +247,12 @@ int shell_pair(int argc, char** argv)
 static
 int shell_list(int argc, char** argv)
 {
-	printf("TEMPORARY UNAVAILABLE\n");
-	return 0;
+	bth_list_query_t list_query = {
+		.info = 0,
+		.ioop = -1
+	};
+	if (contains_arg(argc, argv, "-i") != -1) list_query.info = 1;
+	return bluehook_list(&list_query);
 }
 
 
@@ -252,12 +272,6 @@ int tokenize_line(char* line, char** tokens)
 }
 int shell_start()
 {
-	if (!is_bluetooth_available())
-	{
-		printf("Bluetooth is turned off\nEnable it on ms-settings:bluetooth\n");
-		return 1;
-	}
-
 	system("title Bluehook");
 
 	char inputline[256] = { 0 };
@@ -288,12 +302,6 @@ int shell_start()
 
 int shell_execute(int argc, char** argv)
 {
-	if (!is_bluetooth_available())
-	{
-		printf("Bluetooth is turned off\nEnable it on ms-settings:bluetooth\n");
-		return 1;
-	}
-
 	const char* subcommand = argv[0];
 	if (!strcmp("--help", subcommand) || !strcmp("-h", subcommand))
 		return shell_help(argc, argv, 0);

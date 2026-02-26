@@ -6,6 +6,7 @@
 #include <BluetoothAPIs.h>
 
 #include "clofdev.h"
+#include "devlist.h"
 
 #pragma comment(lib, "Bthprops.lib")
 
@@ -55,6 +56,7 @@ AUTHENTICATION_REQUIREMENTS str2ar(const char* policy)
 }
 
 
+static
 int is_bluetooth_available()
 {
 	HANDLE hRadio;
@@ -66,6 +68,24 @@ int is_bluetooth_available()
 		return 1;
 	}
 	else return 0;
+}
+
+int bluehook_init()
+{
+	if (!is_bluetooth_available())
+	{
+		printf("Bluetooth is turned off\nEnable it on ms-settings:bluetooth\n");
+		return 1;
+	}
+	devlist_init();
+	devlist_load();
+	return 0;
+}
+int bluehook_cleanup()
+{
+	devlist_store();
+	devlist_cleanup();
+	return 0;
 }
 
 
@@ -234,7 +254,10 @@ int bluehook_scan(bth_scan_query_t* query)
 				addr
 			);
 		}
-			
+
+		if (query->do_cache)
+			devlist_add(&device);
+		
 		device.dwSize = sizeof(BLUETOOTH_DEVICE_INFO_STRUCT);
 	}
 	while (BluetoothFindNextDevice(hFind, &device));
@@ -243,22 +266,68 @@ int bluehook_scan(bth_scan_query_t* query)
 	return 0;
 }
 
-
-int bluehook_device_info(const char* addr)
+int bluehook_list(bth_list_query_t* query)
 {
-	BLUETOOTH_ADDRESS_STRUCT bth_addr = str2addr(addr);
+	devlist_rewind();
+	BLUETOOTH_DEVICE_INFO_STRUCT device = { 0 };
+
+	printf("Cached Bluetooth devices:\n\n");
+	while (devlist_next(&device))
+	{
+		char addr[18] = { 0 };
+		addr2str(addr, device.Address);
+
+		if (query->info)
+			print_device_info(&device, addr);
+		else
+		{
+			wprintf(
+				L"%s (%hs)\n",
+				MBNAME(device.szName),
+				addr
+			);
+		}
+	}
+	devlist_rewind();
+	return 0;
+}
+
+static
+int device_info_local_cache(bth_info_query_t* query)
+{
+	BLUETOOTH_ADDRESS_STRUCT bth_addr = str2addr(query->addr);
+
+	devlist_rewind();
+	BLUETOOTH_DEVICE_INFO_STRUCT device = { 0 };
+	while (devlist_next(&device))
+	{
+		if (device.Address.ullLong == bth_addr.ullLong)
+		{
+			print_device_info(&device, query->addr);
+			break;
+		}
+	}
+
+	devlist_rewind();
+	return 0;
+}
+int bluehook_device_info(bth_info_query_t* query)
+{
+	if (query->force_lc) return device_info_local_cache(query);
+
+	BLUETOOTH_ADDRESS_STRUCT bth_addr = str2addr(query->addr);
 	BLUETOOTH_DEVICE_INFO_STRUCT device = { sizeof(BLUETOOTH_DEVICE_INFO_STRUCT) };
 	device.Address = bth_addr;
 
 	if (BluetoothGetDeviceInfo(NULL, &device) != ERROR_SUCCESS)
 	{
-		printf("Failed to locate the device %s\n", addr);
+		printf("Failed to locate the device %s\n", query->addr);
 		return 1;
 	}
 
 	if (BluetoothUpdateDeviceRecord(&device) == ERROR_SUCCESS);
 
-	print_device_info(&device, addr);
+	print_device_info(&device, query->addr);
 
 	return 0;
 }

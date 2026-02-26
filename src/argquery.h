@@ -10,11 +10,25 @@ typedef struct
 
 typedef struct
 {
+	char info;
+	// 0 - Load
+	// 1 - Store
+	char ioop;
+} bth_list_query_t;
+
+typedef struct
+{
 	// 0 - do nothing
 	// 1 - change to TRUE 
 	// 2 - change to FALSE
 	char connectability, discoverability;
 } bth_radio_query_t;
+
+typedef struct
+{
+	char addr[18];
+	char force_lc;
+} bth_info_query_t;
 
 typedef struct
 {
