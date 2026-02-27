@@ -53,7 +53,6 @@ int shell_help(int argc, char** argv, int shellmode)
 					"\t-a\t\tDO NOT look for Authentificated (paired) devices\n"
 					"\t-r\t\tDO NOT look for Remembered devices\n"
 					"\t-u\t\tDO NOT look for Unknown devices\n"
-					"\t-i\t\tShows full information about the device\n"
 					"\t--cache\t\tStore scanned data\n"
 				);
 			}
@@ -69,13 +68,6 @@ int shell_help(int argc, char** argv, int shellmode)
 					"\t\tnr\t\t\t\t- Not Required\n"
 					"\t\tnrb\t\t\t\t- Not Required bonding\n"
 					"\t\tnrg\t\t\t\t- Not Required general bonding\n"
-				);
-			}
-			else if (!strcmp("list", subcommand))
-			{
-				printf(
-					"list\n"
-					"\t-i\t\tShow full information about device\n"
 				);
 			}
 			else if (!strcmp("info", subcommand))
@@ -104,11 +96,9 @@ int shell_help(int argc, char** argv, int shellmode)
 			"\t\t-a\t\t\t\tDO NOT look for Authentificated (paired) devices\n"
 			"\t\t-r\t\t\t\tDO NOT look for Remebered devices\n"
 			"\t\t-u\t\t\t\tDO NOT look for Unknown devices\n"
-			"\t\t-i\t\t\t\tShows full information about the device\n"
 			"\t\t--cache\t\t\t\tStore scanned data\n"
 			"\n"
 			"\t--list\t\t\t\tShows cached devices\n"
-			"\t\t-i\t\t\t\tShows full information about the device\n"
 			"\n"
 			"\t--info [addr]\t\t\tShows info about device\n"
 			"\t\t-lc\t\t\t\tForce to use local cache data rather than scan\n"
@@ -138,12 +128,23 @@ int contains_arg(int argc, char** argv, const char* key)
 }
 
 static
+info_query_params_t get_info_query_params(int argc, char** argv)
+{
+	info_query_params_t iqp = { 0, 0 };
+	if (contains_arg(argc, argv, "-i") != -1) iqp.do_info = 1;
+	if (contains_arg(argc, argv, "-hs") != -1) iqp.hide_services = 1;
+	return iqp;
+}
+
+static
 int shell_radio(int argc, char** argv)
 {
 	bth_radio_query_t radio_query = {
 		.connectability = 0,
-		.discoverability = 0
+		.discoverability = 0,
+		.iqp = get_info_query_params(argc, argv)
 	};
+	radio_query.iqp.do_info = 1;
 	if (argc >= 2)
 	{
 		if (contains_arg(argc, argv, "-c") != -1)		radio_query.connectability = 1;
@@ -164,14 +165,13 @@ int shell_scan(int argc, char** argv)
 		.authetificated = 1,
 		.remembered = 1,
 		.unknown = 1,
-		.do_info = 0,
+		.iqp = get_info_query_params(argc, argv),
 		.do_cache = 0
 	};
 	if (contains_arg(argc, argv, "-c") != -1) scan_query.connected = 0;
 	if (contains_arg(argc, argv, "-a") != -1) scan_query.authetificated = 0;
 	if (contains_arg(argc, argv, "-r") != -1) scan_query.remembered = 0;
 	if (contains_arg(argc, argv, "-u") != -1) scan_query.unknown = 0;
-	if (contains_arg(argc, argv, "-i") != -1) scan_query.do_info = 1;
 	if (contains_arg(argc, argv, "--cache") != -1) scan_query.do_cache = 1;
 
 	int time_arg = contains_arg(argc, argv, "-t=");
@@ -199,8 +199,10 @@ int shell_info(int argc, char** argv)
 	ADDRESS_EXPECTED(argc, "to get info from");
 	bth_info_query_t info_query = {
 		.addr = { 0 },
-		.force_lc = 0
+		.force_lc = 0,
+		.iqp = get_info_query_params(argc, argv)
 	};
+	info_query.iqp.do_info = 1;
 	memcpy(info_query.addr, argv[1], min(17, strlen(argv[1])));
 
 	if (contains_arg(argc, argv, "-lc") != -1) info_query.force_lc = 1;
@@ -222,7 +224,7 @@ int shell_pair(int argc, char** argv)
 
 	bth_auth_query_t auth_query = {
 		.addr = { 0 },
-		.timeout = 30,
+		.timeout = -1,
 		.mitm_protection_policy = { 0 }
 	};
 	memcpy(auth_query.addr, argv[1], min(17, strlen(argv[1])));
@@ -248,10 +250,9 @@ static
 int shell_list(int argc, char** argv)
 {
 	bth_list_query_t list_query = {
-		.info = 0,
+		.iqp = get_info_query_params(argc, argv),
 		.ioop = -1
 	};
-	if (contains_arg(argc, argv, "-i") != -1) list_query.info = 1;
 	return bluehook_list(&list_query);
 }
 

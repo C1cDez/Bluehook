@@ -74,7 +74,8 @@ int bluehook_init()
 {
 	if (!is_bluetooth_available())
 	{
-		printf("Bluetooth is turned off\nEnable it on ms-settings:bluetooth\n");
+		printf("Bluetooth is turned off\nEnable it \x1b]8;;ms-settings:bluetooth\x1b\\here\x1b]8;;\x1b\\\n");
+		system("pause");
 		return 1;
 	}
 	devlist_init();
@@ -157,6 +158,11 @@ int bluehook_radio_info(bth_radio_query_t* query)
 					.service_header = "\tServices:\n",
 					.service = "\t- %-22s%-3s\n"
 				};
+				if (query->iqp.hide_services)
+				{
+					cfp.service_header = NULL;
+					cfp.service = NULL;
+				}
 				class_of_device_format(radio_info.ulClassofDevice, cod, 1024, &cfp);
 
 				wprintf(
@@ -220,6 +226,27 @@ const device_display_params_t FULL_INFO_DDP = {
 	.bindings = "\t%-24s%-3s\n",
 	.times = "\t%-24s%-3s\n"
 };
+static
+const device_display_params_t FULL_HIDE_SERVICES_DDP = {
+	.name = L"%s:\n",
+	.address = "\tAddress:%33s\n",
+	.cod_format = {
+		.main_name = "\tDevice:                 %s - %s\n",
+		.service_header = NULL,
+		.service = NULL
+	},
+	.bindings = "\t%-24s%-3s\n",
+	.times = "\t%-24s%-3s\n"
+};
+
+static
+const device_display_params_t* const ddp_from_iqp(info_query_params_t iqp)
+{
+	if (iqp.do_info)
+		return iqp.hide_services ? &FULL_HIDE_SERVICES_DDP : &FULL_INFO_DDP;
+	else 
+		return &PREVIEW_INFO_DDP;
+}
 
 static
 void fprint_device_info(FILE* fp, BLUETOOTH_DEVICE_INFO_STRUCT* device, const device_display_params_t* ddp)
@@ -282,8 +309,8 @@ int bluehook_scan(bth_scan_query_t* query)
 	{
 		if (BluetoothUpdateDeviceRecord(&device) == ERROR_SUCCESS);
 
-		fprint_device_info(stdout, &device, query->do_info ? &FULL_INFO_DDP : &PREVIEW_INFO_DDP);
-		if (query->do_info) putchar('\n');
+		fprint_device_info(stdout, &device, ddp_from_iqp(query->iqp));
+		if (query->iqp.do_info) putchar('\n');
 
 		if (query->do_cache)
 			devlist_add(&device);
@@ -304,8 +331,8 @@ int bluehook_list(bth_list_query_t* query)
 	printf("Cached Bluetooth devices:\n\n");
 	while (devlist_next(&device))
 	{
-		fprint_device_info(stdout, &device, query->info ? &FULL_INFO_DDP : &PREVIEW_INFO_DDP);
-		if (query->info) putchar('\n');
+		fprint_device_info(stdout, &device, ddp_from_iqp(query->iqp));
+		if (query->iqp.do_info) putchar('\n');
 	}
 	devlist_rewind();
 	return 0;
@@ -322,7 +349,7 @@ int device_info_local_cache(bth_info_query_t* query)
 	{
 		if (device.Address.ullLong == bth_addr.ullLong)
 		{
-			fprint_device_info(stdout, &device, &FULL_INFO_DDP);
+			fprint_device_info(stdout, &device, ddp_from_iqp(query->iqp));
 			break;
 		}
 	}
@@ -346,7 +373,7 @@ int bluehook_device_info(bth_info_query_t* query)
 
 	if (BluetoothUpdateDeviceRecord(&device) == ERROR_SUCCESS);
 
-	fprint_device_info(stdout, &device, &FULL_INFO_DDP);
+	fprint_device_info(stdout, &device, ddp_from_iqp(query->iqp));
 
 	return 0;
 }
