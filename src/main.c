@@ -6,18 +6,17 @@
 #include <signal.h>
 
 
-static
-void signal_handler(int signum)
+static void signal_handler(int signum)
 {
-	if (signum == SIGINT)
+	if (signum == SIGINT) 
 	{
-		printf("Interruption caught!\n");
 		bluehook_cleanup();
 		exit(0);
 	}
+	signal(signum, SIG_DFL);
 }
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
 	if (bluehook_init()) return 1;
 

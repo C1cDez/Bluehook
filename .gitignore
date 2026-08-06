@@ -7,9 +7,6 @@ bin/
 *.vcxproj
 *.vcxproj.*
 
-# Testing
-devlist
-
 # Object files
 *.o
 *.ko

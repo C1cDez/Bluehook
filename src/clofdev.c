@@ -7,7 +7,7 @@
 #define UNRECOGN "[UNRECOGNIZED]"
 
 
-typedef union
+typedef union class_of_device
 {
 	struct
 	{
@@ -20,11 +20,11 @@ typedef union
 } class_of_device_t;
 
 
-const char* manufacturer(unsigned man)
+const char *manufacturer(unsigned man)
 {
 	switch (man)
 	{
-		// Top 7 in the list
+		/* Top 7 in the list */
 	case 0x00: return "Ericsson AB";
 	case 0x01: return "Nokia Mobile Phones";
 	case 0x02: return "Intel Corp.";
@@ -32,7 +32,7 @@ const char* manufacturer(unsigned man)
 	case 0x04: return "Toshiba Corp.";
 	case 0x05: return "3Com";
 	case 0x06: return "Microsoft";
-		// Top 18 in the world by production
+		/* Top 18 in the world by production */
 	case 0x59: 
 		return "Nordic Semiconductor";
 	case 0x1d: case 0xd8: case 0xb8: case 0x011a: case 0x03e3: case 0x0a: case 0xd7: 
@@ -69,13 +69,13 @@ const char* manufacturer(unsigned man)
 		return "Dialog Semiconductor GmbH";
 	case 0x02b0:
 		return "Bestechnic Ltd.";
-		// and so long, 4234 positions...
+		/* and so long, 4234 positions... */
 	default: return UNRECOGN;
 	}
 }
 
 static
-const char* name_major(class_of_device_t cod)
+const char *name_major(class_of_device_t cod)
 {
 	switch (cod.major)
 	{
@@ -94,11 +94,11 @@ const char* name_major(class_of_device_t cod)
 }
 
 static
-const char* name_minor(class_of_device_t cod)
+const char *name_minor(class_of_device_t cod)
 {
 	switch (cod.major)
 	{
-	case 0b00001:		// Computer
+	case 0b00001:		/* Computer */
 	{
 		switch (cod.minor)
 		{
@@ -112,7 +112,7 @@ const char* name_minor(class_of_device_t cod)
 		default: return UNRECOGN;
 		}
 	}
-	case 0b00010:		// Phone
+	case 0b00010:		/* Phone */
 	{
 		switch (cod.minor)
 		{
@@ -124,7 +124,7 @@ const char* name_minor(class_of_device_t cod)
 		default: return UNRECOGN;
 		}
 	}
-	case 0b00011:		// AP
+	case 0b00011:		/* Access Point */
 	{
 		switch (cod.minor)
 		{
@@ -139,13 +139,13 @@ const char* name_minor(class_of_device_t cod)
 		default: return UNRECOGN;
 		}
 	}
-	case 0b00100:		// Audio/Video
+	case 0b00100:		/* Audio / Video */
 	{
 		switch (cod.minor)
 		{
 		case 0b000001: return "Wearable Headset Device";
 		case 0b000010: return "Hands-free Device";
-		// case 0b000011: reserved
+		/* case 0b000011: reserved */
 		case 0b000100: return "Microphone";
 		case 0b000101: return "Loudspeaker";
 		case 0b000110: return "Headphones";
@@ -159,18 +159,18 @@ const char* name_minor(class_of_device_t cod)
 		case 0b001110: return "Video Monitor";
 		case 0b001111: return "Video Display & Loudspeaker";
 		case 0b010000: return "Video Conferencing";
-		// case 0b010001: reserved
+		/* case 0b010001: reserved */
 		case 0b010010: return "Gaming Toy";
 		case 0b010011: return "Hearing Aid";
 		case 0b010100: return "Glasses";
 		default: return UNRECOGN;
 		}
 	}
-	case 0b00101:		// Peropherial
+	case 0b00101:		/* Peropherial */
 	{
 		switch (cod.minor)
 		{
-			// Keyboard
+			/* Keyboard */
 		case 0b010001: return "Keyboard - Joystick";
 		case 0b010010: return "Keyboard - Gamepad";
 		case 0b010011: return "Keyboard - Remote Control";
@@ -180,7 +180,7 @@ const char* name_minor(class_of_device_t cod)
 		case 0b010111: return "Keyboard - Digital Pen";
 		case 0b011000: return "Keyboard - Handheld Scanner";
 		case 0b011001: return "Keyboard - Handheld Gestural Input Device";
-			// Pointing
+			/* Pointing */
 		case 0b100001: return "Pointing Device - Joystick";
 		case 0b100010: return "Pointing Device - Gamepad";
 		case 0b100011: return "Pointing Device - Remote Control";
@@ -190,7 +190,7 @@ const char* name_minor(class_of_device_t cod)
 		case 0b100111: return "Pointing Device - Digital Pen";
 		case 0b101000: return "Pointing Device - Handheld Scanner";
 		case 0b101001: return "Pointing Device - Handheld Gestural Input Device";
-			// Combo
+			/* Combo */
 		case 0b110001: return "Combo - Joystick";
 		case 0b110010: return "Combo - Gamepad";
 		case 0b110011: return "Combo - Remote Control";
@@ -203,7 +203,7 @@ const char* name_minor(class_of_device_t cod)
 		default: return UNRECOGN;
 		}
 	}
-	case 0b00110:		// Imaging
+	case 0b00110:		/* Imaging */
 	{
 		switch (cod.minor)
 		{
@@ -214,7 +214,7 @@ const char* name_minor(class_of_device_t cod)
 		default: return UNRECOGN;
 		}
 	}
-	case 0b00111:		// Wearable
+	case 0b00111:		/* Wearable */
 	{
 		switch (cod.minor)
 		{
@@ -227,7 +227,7 @@ const char* name_minor(class_of_device_t cod)
 		default: return UNRECOGN;
 		}
 	}
-	case 0b001000:		// Toy
+	case 0b001000:		/* Toy */
 	{
 		switch (cod.minor)
 		{
@@ -239,7 +239,7 @@ const char* name_minor(class_of_device_t cod)
 		default: return UNRECOGN;
 		}
 	}
-	case 0b001001:		// Health
+	case 0b001001:		/* Health */
 	{
 		switch (cod.minor)
 		{
@@ -268,41 +268,38 @@ const char* name_minor(class_of_device_t cod)
 
 #define YESNO(cond) (cond) ? "Yes" : "No"
 
-void class_of_device_format(unsigned ucod, char* buff, int size, const cod_format_params_t* cfp)
+void class_of_device_format(unsigned ucod, char *buff, const cod_format_params_t *cfp)
 {
 	class_of_device_t cod = { .classofdevice = ucod };
 
 	if (cfp->main_name)
 	{
-		int off = sprintf_s(buff, size, cfp->main_name, name_major(cod), name_minor(cod));
+		int off = sprintf(buff, cfp->main_name, name_major(cod), name_minor(cod));
 		buff += off;
-		size -= off;
 	}
 
 	if (cfp->service)
 	{
 		unsigned service = cod.service;
-		int off = sprintf_s(buff, size, cfp->service_header, "Services");
+		int off = sprintf(buff, cfp->service_header, "Services");
 		buff += off;
-		size -= off;
 
 #define INSERT_SERVICE(name, key) \
 do { \
-	int len = sprintf_s(buff, size, cfp->service, name, YESNO(service & key)); \
+	int len = sprintf(buff, cfp->service, name, YESNO(service & key)); \
 	buff += len; \
-	size -= len; \
 } while (0);
 
-		INSERT_SERVICE("Limited Discovery", 0x000001);
-		INSERT_SERVICE("Low Eneragy Audio", 0x000002);
-		INSERT_SERVICE("Positioning", 0x000008);
-		INSERT_SERVICE("Networking", 0x000010);
-		INSERT_SERVICE("Rendering", 0x000020);
-		INSERT_SERVICE("Capturing", 0x000040);
-		INSERT_SERVICE("Object-Transfer", 0x000080);
-		INSERT_SERVICE("Audio", 0x000100);
-		INSERT_SERVICE("Telephony", 0x000200);
-		INSERT_SERVICE("Information (WEB)", 0x000400);
+		INSERT_SERVICE("Limited Discovery",	0x000001);
+		INSERT_SERVICE("Low Eneragy Audio",	0x000002);
+		INSERT_SERVICE("Positioning",		0x000008);
+		INSERT_SERVICE("Networking",		0x000010);
+		INSERT_SERVICE("Rendering",			0x000020);
+		INSERT_SERVICE("Capturing",			0x000040);
+		INSERT_SERVICE("Object-Transfer",	0x000080);
+		INSERT_SERVICE("Audio",				0x000100);
+		INSERT_SERVICE("Telephony",			0x000200);
+		INSERT_SERVICE("Information (WEB)",	0x000400);
 
 #undef INSERT_SERVICE
 	}

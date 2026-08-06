@@ -1,50 +1,17 @@
 #include "bluehook.h"
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <winerror.h>
 
-#include <Windows.h>
-#include <BluetoothAPIs.h>
-
+#include "bthutils.h"
 #include "clofdev.h"
-#include "devlist.h"
 
-#pragma comment(lib, "Bthprops.lib")
-
-
-#define YESNO(cond) (cond) ? "Yes" : "No"
 
 #define MBNAME(name) name[0] ? name : L"[UNDEFINED]"
 
 
-static
-void addr2str(char* buff, BLUETOOTH_ADDRESS_STRUCT addr)
-{
-	sprintf_s(buff, 18, "%02x:%02x:%02x:%02x:%02x:%02x", 
-		addr.rgBytes[5], addr.rgBytes[4], addr.rgBytes[3], addr.rgBytes[2], addr.rgBytes[1], addr.rgBytes[0]);
-}
-static
-BLUETOOTH_ADDRESS_STRUCT str2addr(const char* addr)
-{
-	unsigned b0, b1, b2, b3, b4, b5;
-	sscanf_s(addr, "%2x:%2x:%2x:%2x:%2x:%2x", &b5, &b4, &b3, &b2, &b1, &b0);
-	BLUETOOTH_ADDRESS_STRUCT bth_addr = {
-		.rgBytes = { b0, b1, b2, b3, b4, b5 }
-	};
-	return bth_addr;
-}
-
-static
-void format_systemtime(char* buff, SYSTEMTIME st)
-{
-	if (st.wYear == 1601)
-		sprintf_s(buff, 7, "[NONE]");
-	else
-		sprintf_s(buff, 24, "%hd-%02hd-%02hd %02hd:%02hd:%02hd.%03hd",
-			st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
-}
-
-static
-AUTHENTICATION_REQUIREMENTS str2ar(const char* policy)
+static AUTHENTICATION_REQUIREMENTS str2ar(const char *policy)
 {
 	if (!strcmp("r", policy))			return MITMProtectionRequired;
 	else if (!strcmp("rb", policy))		return MITMProtectionRequiredBonding;
@@ -56,8 +23,7 @@ AUTHENTICATION_REQUIREMENTS str2ar(const char* policy)
 }
 
 
-static
-int is_bluetooth_available()
+static int is_bluetooth_available(void)
 {
 	HANDLE hRadio;
 	BLUETOOTH_FIND_RADIO_PARAMS params = { sizeof(BLUETOOTH_FIND_RADIO_PARAMS) };
@@ -70,28 +36,23 @@ int is_bluetooth_available()
 	else return 0;
 }
 
-int bluehook_init()
+int bluehook_init(void)
 {
 	if (!is_bluetooth_available())
 	{
-		printf("Bluetooth is turned off\nEnable it \x1b]8;;ms-settings:bluetooth\x1b\\here\x1b]8;;\x1b\\\n");
-		system("pause");
+		printf("Bluetooth is turned off\nEnable it on "
+			"\x1b]8;;ms-settings:bluetooth\x1b\\ms-settings:bluetooth\x1b]8;;\x1b\\\n");
 		return 1;
 	}
-	devlist_init();
-	devlist_load();
 	return 0;
 }
-int bluehook_cleanup()
+int bluehook_cleanup(void)
 {
-	devlist_store();
-	devlist_cleanup();
 	return 0;
 }
 
 
-static
-int switch_radio_modes(bth_radio_query_t* query, HANDLE hRadio)
+static int switch_radio_modes(bth_radio_query_t *query, HANDLE hRadio)
 {
 	int connectable = BluetoothIsConnectable(hRadio), discoverable = BluetoothIsDiscoverable(hRadio);
 	if (connectable | discoverable);
@@ -103,11 +64,11 @@ int switch_radio_modes(bth_radio_query_t* query, HANDLE hRadio)
 			printf("Radio is already %s\n", connectable ? "connectable" : "not-connectable");
 		else
 		{
-			if (BluetoothEnableIncomingConnections(hRadio, query_con))
+			if (BluetoothEnableIncomingConnections(hRadio, query_con) != ERROR_SUCCESS)
 				printf("Successfully %s incoming connections\n",
 					query_con ? "enabled" : "disabled");
 			else
-				printf("Failed to %s incoming connections. Error: %x\n",
+				printf("Failed to %s incoming connections. Error: %lx. (Are you admin?)\n",
 					query_con ? "enable" : "disable", GetLastError());
 		}
 	}
@@ -118,18 +79,18 @@ int switch_radio_modes(bth_radio_query_t* query, HANDLE hRadio)
 			printf("Radio is already %s\n", discoverable ? "discoverable" : "not-discoverable");
 		else
 		{
-			if (BluetoothEnableDiscovery(hRadio, query_dis))
+			if (BluetoothEnableDiscovery(hRadio, query_dis) != ERROR_SUCCESS)
 				printf("Successfully %s discovery\n",
 					query_dis ? "enabled" : "disabled");
 			else
-				printf("Failed to %s discovery. Error: %x\n",
+				printf("Failed to %s discovery. Error: %lx\n",
 					query_dis ? "enable" : "disable", GetLastError());
 		}
 	}
 	return 0;
 }
 
-int bluehook_radio_info(bth_radio_query_t* query)
+int bluehook_radio_info(bth_radio_query_t *query)
 {
 	HANDLE hRadio;
 	BLUETOOTH_FIND_RADIO_PARAMS params = { sizeof(BLUETOOTH_FIND_RADIO_PARAMS) };
@@ -150,9 +111,9 @@ int bluehook_radio_info(bth_radio_query_t* query)
 				switch_radio_modes(query, hRadio);
 			else
 			{
-				char addr[18] = { 0 };
+				char addr[BLUETOOTH_ADDRESS_STRLEN] = { 0 };
 				addr2str(addr, radio_info.address);
-				char cod[1024] = { 0 };
+				char cod[RECOMMENDED_COD_REPR_STRLEN] = { 0 };
 				cod_format_params_t cfp = {
 					.main_name = "%s - %s\n",
 					.service_header = "\tServices:\n",
@@ -163,7 +124,7 @@ int bluehook_radio_info(bth_radio_query_t* query)
 					cfp.service_header = NULL;
 					cfp.service = NULL;
 				}
-				class_of_device_format(radio_info.ulClassofDevice, cod, 1024, &cfp);
+				class_of_device_format(radio_info.ulClassofDevice, cod, &cfp);
 
 				wprintf(
 					L"%s:\n"
@@ -195,16 +156,15 @@ int bluehook_radio_info(bth_radio_query_t* query)
 
 typedef struct
 {
-	const wchar_t* name;		// %s
-	const char* address;		// %s
+	const wchar_t *name;		/* %s */
+	const char *address;		/* %s */
 	cod_format_params_t cod_format;
-	const char* bindings;		// %s, %s
-	const char* times;			// %s, %s
+	const char *bindings;		/* %s, %s */
+	const char *times;			/* %s, %s */
 } device_display_params_t;
 
-static
-const device_display_params_t PREVIEW_INFO_DDP = {
-	.name = L"%-30s",
+static const device_display_params_t PREVIEW_INFO_DDP = {
+	.name = L"%-32s",
 	.address = "%-30s",
 	.cod_format = {
 		.main_name = "%s (%s)\n",
@@ -214,8 +174,7 @@ const device_display_params_t PREVIEW_INFO_DDP = {
 	.bindings = NULL,
 	.times = NULL
 };
-static
-const device_display_params_t FULL_INFO_DDP = {
+static const device_display_params_t FULL_INFO_DDP = {
 	.name = L"%s:\n",
 	.address = "\tAddress:%33s\n",
 	.cod_format = {
@@ -226,8 +185,7 @@ const device_display_params_t FULL_INFO_DDP = {
 	.bindings = "\t%-24s%-3s\n",
 	.times = "\t%-24s%-3s\n"
 };
-static
-const device_display_params_t FULL_HIDE_SERVICES_DDP = {
+static const device_display_params_t FULL_HIDE_SERVICES_DDP = {
 	.name = L"%s:\n",
 	.address = "\tAddress:%33s\n",
 	.cod_format = {
@@ -239,8 +197,7 @@ const device_display_params_t FULL_HIDE_SERVICES_DDP = {
 	.times = "\t%-24s%-3s\n"
 };
 
-static
-const device_display_params_t* const ddp_from_iqp(info_query_params_t iqp)
+static const device_display_params_t *const ddp_from_iqp(info_query_params_t iqp)
 {
 	if (iqp.do_info)
 		return iqp.hide_services ? &FULL_HIDE_SERVICES_DDP : &FULL_INFO_DDP;
@@ -248,20 +205,20 @@ const device_display_params_t* const ddp_from_iqp(info_query_params_t iqp)
 		return &PREVIEW_INFO_DDP;
 }
 
-static
-void fprint_device_info(FILE* fp, BLUETOOTH_DEVICE_INFO_STRUCT* device, const device_display_params_t* ddp)
+static void fprint_device_info(FILE *fp, BLUETOOTH_DEVICE_INFO_STRUCT *device,
+	const device_display_params_t *ddp)
 {
-	fwprintf(fp, MBNAME(ddp->name), device->szName);
+	fwprintf(fp, ddp->name, MBNAME(device->szName));
 	
 	if (ddp->address)
 	{
-		char addr[18] = { 0 };
+		char addr[BLUETOOTH_ADDRESS_STRLEN] = { 0 };
 		addr2str(addr, device->Address);
 		fprintf(fp, ddp->address, addr);
 	}
 
-	char cod[1024] = { 0 };
-	class_of_device_format(device->ulClassofDevice, cod, 1024, &ddp->cod_format);
+	char cod[RECOMMENDED_COD_REPR_STRLEN] = { 0 };
+	class_of_device_format(device->ulClassofDevice, cod, &ddp->cod_format);
 	fprintf(fp, cod);
 
 	if (ddp->bindings)
@@ -282,11 +239,11 @@ void fprint_device_info(FILE* fp, BLUETOOTH_DEVICE_INFO_STRUCT* device, const de
 	}
 }
 
-int bluehook_scan(bth_scan_query_t* query)
+int bluehook_scan(bth_scan_query_t *query)
 {
 	BLUETOOTH_DEVICE_SEARCH_PARAMS params = {
 		.dwSize					= sizeof(BLUETOOTH_DEVICE_SEARCH_PARAMS),
-		.cTimeoutMultiplier		= (int)(query->timeout / 1.28),
+		.cTimeoutMultiplier		= (UCHAR)(query->timeout / 1.28),
 		.fReturnConnected		= query->connected,
 		.fReturnAuthenticated	= query->authetificated,
 		.fReturnRemembered		= query->remembered,
@@ -312,9 +269,6 @@ int bluehook_scan(bth_scan_query_t* query)
 		fprint_device_info(stdout, &device, ddp_from_iqp(query->iqp));
 		if (query->iqp.do_info) putchar('\n');
 
-		if (query->do_cache)
-			devlist_add(&device);
-		
 		device.dwSize = sizeof(BLUETOOTH_DEVICE_INFO_STRUCT);
 	}
 	while (BluetoothFindNextDevice(hFind, &device));
@@ -323,45 +277,16 @@ int bluehook_scan(bth_scan_query_t* query)
 	return 0;
 }
 
-int bluehook_list(bth_list_query_t* query)
-{
-	devlist_rewind();
-	BLUETOOTH_DEVICE_INFO_STRUCT device = { 0 };
 
-	printf("Cached Bluetooth devices:\n\n");
-	while (devlist_next(&device))
-	{
-		fprint_device_info(stdout, &device, ddp_from_iqp(query->iqp));
-		if (query->iqp.do_info) putchar('\n');
-	}
-	devlist_rewind();
-	return 0;
-}
-
-static
-int device_info_local_cache(bth_info_query_t* query)
+int bluehook_device_info(bth_info_query_t *query)
 {
 	BLUETOOTH_ADDRESS_STRUCT bth_addr = str2addr(query->addr);
-
-	devlist_rewind();
-	BLUETOOTH_DEVICE_INFO_STRUCT device = { 0 };
-	while (devlist_next(&device))
+	if (bth_addr.ullLong == BLUETOOTH_NULL_ADDRESS)
 	{
-		if (device.Address.ullLong == bth_addr.ullLong)
-		{
-			fprint_device_info(stdout, &device, ddp_from_iqp(query->iqp));
-			break;
-		}
+		printf("Incorrect address '%s'\n", query->addr);
+		return 1;
 	}
 
-	devlist_rewind();
-	return 0;
-}
-int bluehook_device_info(bth_info_query_t* query)
-{
-	if (query->force_lc) return device_info_local_cache(query);
-
-	BLUETOOTH_ADDRESS_STRUCT bth_addr = str2addr(query->addr);
 	BLUETOOTH_DEVICE_INFO_STRUCT device = { sizeof(BLUETOOTH_DEVICE_INFO_STRUCT) };
 	device.Address = bth_addr;
 
@@ -378,9 +303,15 @@ int bluehook_device_info(bth_info_query_t* query)
 	return 0;
 }
 
-int bluehook_remove(const char* addr)
+int bluehook_remove(const char *addr)
 {
 	BLUETOOTH_ADDRESS_STRUCT bth_addr = str2addr(addr);
+	if (bth_addr.ullLong == BLUETOOTH_NULL_ADDRESS)
+	{
+		printf("Incorrect address '%s'\n", addr);
+		return 1;
+	}
+
 	if (BluetoothRemoveDevice(&bth_addr) == ERROR_SUCCESS)
 	{
 		printf("Device %s was removed successfully\n", addr);
@@ -393,10 +324,10 @@ int bluehook_remove(const char* addr)
 	}
 }
 
-static
-BOOL CALLBACK bluehook_auth_callback(LPVOID pvParam, 
+static BOOL CALLBACK bluehook_auth_callback(LPVOID pvParam, 
 	PBLUETOOTH_AUTHENTICATION_CALLBACK_PARAMS pAuthCallbackParams)
 {
+	(void)pvParam;
 	BLUETOOTH_AUTHENTICATE_RESPONSE response = { 0 };
 	response.bthAddressRemote = pAuthCallbackParams->deviceInfo.Address;
 	response.authMethod = pAuthCallbackParams->authenticationMethod;
@@ -405,12 +336,12 @@ BOOL CALLBACK bluehook_auth_callback(LPVOID pvParam,
 	if (pAuthCallbackParams->authenticationMethod == BLUETOOTH_AUTHENTICATION_METHOD_NUMERIC_COMPARISON)
 	{
 		response.numericCompInfo.NumericValue = pAuthCallbackParams->Numeric_Value;
-		printf("Numeric comparison: %u\n", pAuthCallbackParams->Numeric_Value);
+		printf("Numeric comparison: %lu\n", pAuthCallbackParams->Numeric_Value);
 	}
 	else if (pAuthCallbackParams->authenticationMethod == BLUETOOTH_AUTHENTICATION_METHOD_PASSKEY)
 	{
 		response.passkeyInfo.passkey = pAuthCallbackParams->Passkey;
-		printf("Passkey: %u\n", pAuthCallbackParams->Passkey);
+		printf("Passkey: %lu\n", pAuthCallbackParams->Passkey);
 	}
 
 	int result = BluetoothSendAuthenticationResponseEx(NULL, &response);
@@ -418,10 +349,15 @@ BOOL CALLBACK bluehook_auth_callback(LPVOID pvParam,
 }
 
 
-int bluehook_auth(bth_auth_query_t* auth_query)
+int bluehook_auth(bth_auth_query_t *auth_query)
 {
 	BLUETOOTH_DEVICE_INFO_STRUCT device = { sizeof(BLUETOOTH_DEVICE_INFO_STRUCT) };
 	device.Address = str2addr(auth_query->addr);
+	if (device.Address.ullLong == BLUETOOTH_NULL_ADDRESS)
+	{
+		printf("Incorrect address '%s'\n", auth_query->addr);
+		return 1;
+	}
 
 	HBLUETOOTH_AUTHENTICATION_REGISTRATION hReg = NULL;
 	if (BluetoothRegisterForAuthenticationEx(&device, &hReg, &bluehook_auth_callback, NULL) != ERROR_SUCCESS)
