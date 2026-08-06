@@ -10,8 +10,7 @@
 #include "bluehook.h"
 
 
-static
-int shell_help(int argc, char **argv, int shellmode)
+static int shell_help(int argc, char **argv, int shellmode)
 {
 	if (shellmode)
 	{
@@ -108,16 +107,14 @@ int shell_help(int argc, char **argv, int shellmode)
 	return 0;
 }
 
-static
-int contains_arg(int argc, char **argv, const char *key)
+static int contains_arg(int argc, char **argv, const char *key)
 {
 	for (int i = 0; i < argc; i++)
 		if (!strncmp(argv[i], key, strlen(key))) return i;
 	return -1;
 }
 
-static
-info_query_params_t get_info_query_params(int argc, char **argv)
+static info_query_params_t get_info_query_params(int argc, char **argv)
 {
 	info_query_params_t iqp = { 0, 0 };
 	if (contains_arg(argc, argv, "-i") != -1)	iqp.do_info = 1;
@@ -125,8 +122,7 @@ info_query_params_t get_info_query_params(int argc, char **argv)
 	return iqp;
 }
 
-static
-int shell_radio(int argc, char **argv)
+static int shell_radio(int argc, char **argv)
 {
 	bth_radio_query_t radio_query = {
 		.connectability = 0,
@@ -145,8 +141,7 @@ int shell_radio(int argc, char **argv)
 	return bluehook_radio_info(&radio_query);
 }
 
-static
-int shell_scan(int argc, char **argv)
+static int shell_scan(int argc, char **argv)
 {
 	bth_scan_query_t scan_query = {
 		.timeout = 10,
@@ -180,8 +175,7 @@ int shell_scan(int argc, char **argv)
 	} \
 } while (0);
 
-static
-int shell_info(int argc, char **argv)
+static int shell_info(int argc, char **argv)
 {
 	ADDRESS_EXPECTED(argc, "to get info from");
 	bth_info_query_t info_query = {
@@ -194,15 +188,13 @@ int shell_info(int argc, char **argv)
 	return bluehook_device_info(&info_query);
 }
 
-static
-int shell_remove(int argc, char **argv)
+static int shell_remove(int argc, char **argv)
 {
 	ADDRESS_EXPECTED(argc, "to be removed");
 	return bluehook_remove(argv[1]);
 }
 
-static
-int shell_pair(int argc, char **argv)
+static int shell_pair(int argc, char **argv)
 {
 	ADDRESS_EXPECTED(argc, "to pair");
 
@@ -231,8 +223,7 @@ int shell_pair(int argc, char **argv)
 }
 
 
-static
-int tokenize_line(char *line, char **tokens, int toklimit)
+static int tokenize_line(char *line, char **tokens, int toklimit)
 {
 	int i = 0;
 	char *token = strtok(line, " ");

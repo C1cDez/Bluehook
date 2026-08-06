@@ -74,8 +74,7 @@ const char *manufacturer(unsigned man)
 	}
 }
 
-static
-const char *name_major(class_of_device_t cod)
+static const char *name_major(class_of_device_t cod)
 {
 	switch (cod.major)
 	{
@@ -93,8 +92,7 @@ const char *name_major(class_of_device_t cod)
 	}
 }
 
-static
-const char *name_minor(class_of_device_t cod)
+static const char *name_minor(class_of_device_t cod)
 {
 	switch (cod.major)
 	{
