@@ -2,6 +2,7 @@
 	- Removed devlist
 	- Heeded compiler warnings
 	- Refactor code
+	- Added list subcommand to show cached devices
 
 26.02.2026
 	- Implemented shell mode

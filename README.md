@@ -1,2 +1,3 @@
 # Bluehook
-Simple Bluetooth CLI for Windows
+
+Simple Bluetooth CLI and REPL shell for Windows.

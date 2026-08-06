@@ -17,16 +17,21 @@ static int shell_help(int argc, char **argv, int shellmode)
 		if (argc == 1)
 		{
 			printf(
-				"exit, quit\t\tExits shell mode\n"
-				"clear, cls\t\tClears shell screen\n"
+				"exit/quit\t\tExits shell mode\n"
+				"clear/cls\t\tClears shell screen\n"
 				"help\t\t\tShows this screen\n"
 				"radio ...\t\tShows info about your bluetooth radio\n"
 				"scan ...\t\tScans local area for bluetooth devices\n"
 				"info [addr]\t\tShows info about device\n"
+				"list\t\t\tShows cached devices\n"
 				"remove [addr]\t\tRemoves authentification bewteen device and a computer\n"
-				"pair, auth [addr] ...\tSends authentification request to device\n"
+				"pair/auth [addr] ...\tSends authentification request to device\n"
 				"\n"
 				"... - stands for more options. To see them type \"help 'command'\"\n"
+				"\n"
+				"radio, scan, info, list support these flags:\n"
+				"\t-i\t\tShows full device information\n"
+				"\t-hs\t\tHides services of device\n"
 			);
 		}
 		else
@@ -79,8 +84,8 @@ static int shell_help(int argc, char **argv, int shellmode)
 			"bluehook is a CLI utility to manage Bluetooth devices & connections.\n"
 			"\nUsage:\n"
 			"\t--radio\t\t\t\tShows info about your bluetooth radio\n"
-			"\t\t-c, -nc\t\t\t\tMakes radio connectable/not-connectable\n"
-			"\t\t-d, -nd\t\t\t\tMakes radio discoverable/not-discoverable (SHELL MODE ONLY)\n"
+			"\t\t-c, -nc\t\t\t\tMakes radio connectable/non-connectable\n"
+			"\t\t-d, -nd\t\t\t\tMakes radio discoverable/non-discoverable (SHELL MODE ONLY)\n"
 			"\n"
 			"\t--scan\t\t\t\tScans local area for bluetooth devices\n"
 			"\t\t-t=[s]\t\t\t\tSet timeout, in seconds\n"
@@ -90,7 +95,7 @@ static int shell_help(int argc, char **argv, int shellmode)
 			"\t\t-u\t\t\t\tDO NOT look for Unknown devices\n"
 			"\n"
 			"\t--info [addr]\t\t\tShows info about device\n"
-			"\n"
+			"\t--list\t\t\t\tShows cached devices\n"
 			"\t--remove [addr]\t\t\tRemoves authentification bewteen device and a computer\n"
 			"\n"
 			"\t--pair [addr] <-t> <-m>\t\tSends authentification request to device\n"
@@ -107,18 +112,21 @@ static int shell_help(int argc, char **argv, int shellmode)
 	return 0;
 }
 
-static int contains_arg(int argc, char **argv, const char *key)
+static char *get_arg_opt_if_exist(int argc, char **argv, const char *key)
 {
 	for (int i = 0; i < argc; i++)
-		if (!strncmp(argv[i], key, strlen(key))) return i;
-	return -1;
+	{
+		if (!strncmp(argv[i], key, strlen(key)))
+			return argv[i] + strlen(key) + (argv[i][strlen(key)] == '=');
+	}
+	return NULL;
 }
 
 static info_query_params_t get_info_query_params(int argc, char **argv)
 {
 	info_query_params_t iqp = { 0, 0 };
-	if (contains_arg(argc, argv, "-i") != -1)	iqp.do_info = 1;
-	if (contains_arg(argc, argv, "-hs") != -1)	iqp.hide_services = 1;
+	if (get_arg_opt_if_exist(argc, argv, "-i"))	 iqp.do_info = 1;
+	if (get_arg_opt_if_exist(argc, argv, "-hs")) iqp.hide_services = 1;
 	return iqp;
 }
 
@@ -132,10 +140,10 @@ static int shell_radio(int argc, char **argv)
 	radio_query.iqp.do_info = 1;
 	if (argc >= 2)
 	{
-		if (contains_arg(argc, argv, "-c") != -1)		radio_query.connectability = 1;
-		else if (contains_arg(argc, argv, "-nc") != -1)	radio_query.connectability = 2;
-		if (contains_arg(argc, argv, "-d") != -1)		radio_query.discoverability = 1;
-		else if (contains_arg(argc, argv, "-nd") != -1)	radio_query.discoverability = 2;
+		if		(get_arg_opt_if_exist(argc, argv, "-c"))	radio_query.connectability = 1;
+		else if (get_arg_opt_if_exist(argc, argv, "-nc"))	radio_query.connectability = 2;
+		if		(get_arg_opt_if_exist(argc, argv, "-d"))	radio_query.discoverability = 1;
+		else if (get_arg_opt_if_exist(argc, argv, "-nd"))	radio_query.discoverability = 2;
 	}
 
 	return bluehook_radio_info(&radio_query);
@@ -151,19 +159,32 @@ static int shell_scan(int argc, char **argv)
 		.unknown = 1,
 		.iqp = get_info_query_params(argc, argv),
 	};
-	if (contains_arg(argc, argv, "-c") != -1) scan_query.connected = 0;
-	if (contains_arg(argc, argv, "-a") != -1) scan_query.authetificated = 0;
-	if (contains_arg(argc, argv, "-r") != -1) scan_query.remembered = 0;
-	if (contains_arg(argc, argv, "-u") != -1) scan_query.unknown = 0;
+	if (get_arg_opt_if_exist(argc, argv, "-c")) scan_query.connected = 0;
+	if (get_arg_opt_if_exist(argc, argv, "-a")) scan_query.authetificated = 0;
+	if (get_arg_opt_if_exist(argc, argv, "-r")) scan_query.remembered = 0;
+	if (get_arg_opt_if_exist(argc, argv, "-u")) scan_query.unknown = 0;
 
-	int time_arg = contains_arg(argc, argv, "-t=");
-	if (time_arg != -1)
-	{
-		char *time = argv[time_arg] + 3;
-		scan_query.timeout = atoi(time);
-	}
+	char *time_arg = get_arg_opt_if_exist(argc, argv, "-t");
+	if (time_arg) scan_query.timeout = atoi(time_arg);
 
-	return bluehook_scan(&scan_query);
+	return bluehook_scan(&scan_query, 0);
+}
+static int shell_list(int argc, char **argv)
+{
+	bth_scan_query_t scan_query = {
+		.timeout = 0,
+		.connected = 1,
+		.authetificated = 1,
+		.remembered = 1,
+		.unknown = 1,
+		.iqp = get_info_query_params(argc, argv),
+	};
+	if (get_arg_opt_if_exist(argc, argv, "-c")) scan_query.connected = 0;
+	if (get_arg_opt_if_exist(argc, argv, "-a")) scan_query.authetificated = 0;
+	if (get_arg_opt_if_exist(argc, argv, "-r")) scan_query.remembered = 0;
+	if (get_arg_opt_if_exist(argc, argv, "-u")) scan_query.unknown = 0;
+
+	return bluehook_scan(&scan_query, 1);
 }
 
 
@@ -205,19 +226,12 @@ static int shell_pair(int argc, char **argv)
 	};
 	memcpy(auth_query.addr, argv[1], min(sizeof(auth_query.addr) - 1, strlen(argv[1])));
 
-	int time_arg = contains_arg(argc, argv, "-t=");
-	if (time_arg != -1)
-	{
-		char *time = argv[time_arg] + 3;
-		auth_query.timeout = atoi(time);
-	}
+	char *time_arg = get_arg_opt_if_exist(argc, argv, "-t");
+	if (time_arg) auth_query.timeout = atoi(time_arg);
 
-	int mitm_arg = contains_arg(argc, argv, "-m=");
-	if (mitm_arg != -1)
-	{
-		char *policy = argv[mitm_arg] + 3;
-		memcpy(auth_query.mitm_protection_policy, policy, 3);
-	}
+	char *mitm_arg = get_arg_opt_if_exist(argc, argv, "-m");
+	if (mitm_arg)
+		memcpy(auth_query.mitm_protection_policy, mitm_arg, 3);
 
 	return bluehook_auth(&auth_query);
 }
@@ -262,6 +276,8 @@ int shell_start(void)
 			shell_radio(argc, argv);
 		else if (!strcmp("scan", subcommand))
 			shell_scan(argc, argv);
+		else if (!strcmp("list", subcommand))
+			shell_list(argc, argv);
 		else if (!strcmp("info", subcommand))
 			shell_info(argc, argv);
 		else if (!strcmp("remove", subcommand))
@@ -285,6 +301,8 @@ int shell_execute(int argc, char **argv)
 		return shell_radio(argc, argv);
 	else if (!strcmp("--scan", subcommand))
 		return shell_scan(argc, argv);
+	else if (!strcmp("--list", subcommand))
+		return shell_list(argc, argv);
 	else if (!strcmp("--info", subcommand))
 		return shell_info(argc, argv);
 	else if (!strcmp("--remove", subcommand))

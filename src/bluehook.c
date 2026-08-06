@@ -239,7 +239,7 @@ static void fprint_device_info(FILE *fp, BLUETOOTH_DEVICE_INFO_STRUCT *device,
 	}
 }
 
-int bluehook_scan(bth_scan_query_t *query)
+int bluehook_scan(bth_scan_query_t *query, int local)
 {
 	BLUETOOTH_DEVICE_SEARCH_PARAMS params = {
 		.dwSize					= sizeof(BLUETOOTH_DEVICE_SEARCH_PARAMS),
@@ -248,7 +248,7 @@ int bluehook_scan(bth_scan_query_t *query)
 		.fReturnAuthenticated	= query->authetificated,
 		.fReturnRemembered		= query->remembered,
 		.fReturnUnknown			= query->unknown,
-		.fIssueInquiry			= TRUE,
+		.fIssueInquiry			= local ? FALSE : TRUE,
 		.hRadio					= NULL
 	};
 

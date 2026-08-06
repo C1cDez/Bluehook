@@ -8,7 +8,6 @@
 #include <BluetoothLEAPIs.h>
 
 #pragma comment(lib, "Bthprops.lib")
-#pragma comment(lib, "WS2_32.lib")
 
 
 #define BLUETOOTH_ADDRESS_STRLEN 18
