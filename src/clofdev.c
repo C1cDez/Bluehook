@@ -1,5 +1,6 @@
 #include "clofdev.h"
 
+#define _CRT_SECURE_NO_WARNINGS
 #include <string.h>
 #include <stdio.h>
 
@@ -271,22 +272,15 @@ void class_of_device_format(unsigned ucod, char *buff, const cod_format_params_t
 	class_of_device_t cod = { .classofdevice = ucod };
 
 	if (cfp->main_name)
-	{
-		int off = sprintf(buff, cfp->main_name, name_major(cod), name_minor(cod));
-		buff += off;
-	}
+		buff += sprintf(buff, cfp->main_name, name_major(cod), name_minor(cod));
 
 	if (cfp->service)
 	{
 		unsigned service = cod.service;
-		int off = sprintf(buff, cfp->service_header, "Services");
-		buff += off;
+		buff += sprintf(buff, cfp->service_header, "Services");
 
-#define INSERT_SERVICE(name, key) \
-do { \
-	int len = sprintf(buff, cfp->service, name, YESNO(service & key)); \
-	buff += len; \
-} while (0);
+	#define INSERT_SERVICE(name, key) \
+		buff += sprintf(buff, cfp->service, name, YESNO(service & key))
 
 		INSERT_SERVICE("Limited Discovery",	0x000001);
 		INSERT_SERVICE("Low Eneragy Audio",	0x000002);

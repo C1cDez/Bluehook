@@ -10,15 +10,8 @@ typedef struct
 	int timeout;
 	char connected, authetificated, remembered, unknown;
 	info_query_params_t iqp;
+	char inquiry;
 } bth_scan_query_t;
-
-typedef struct
-{
-	info_query_params_t iqp;
-	/* 0 - Load */
-	/* 1 - Store */
-	char ioop;
-} bth_list_query_t;
 
 typedef struct
 {
@@ -42,3 +35,10 @@ typedef struct
 	int timeout;
 	char mitm_protection_policy[4];
 } bth_auth_query_t;
+
+typedef struct
+{
+	char addr[BLUETOOTH_ADDRESS_STRLEN];
+	int amount;
+	int timeout;
+} bth_ping_query_t;

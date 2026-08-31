@@ -26,6 +26,7 @@ static int shell_help(int argc, char **argv, int shellmode)
 				"list\t\t\tShows cached devices\n"
 				"remove [addr]\t\tRemoves authentification bewteen device and a computer\n"
 				"pair/auth [addr] ...\tSends authentification request to device\n"
+				"ping [addr] ...\t\tPings device\n"
 				"\n"
 				"... - stands for more options. To see them type \"help 'command'\"\n"
 				"\n"
@@ -74,6 +75,14 @@ static int shell_help(int argc, char **argv, int shellmode)
 					"\t\tnrg\t\t\t\t- Not Required general bonding\n"
 				);
 			}
+			else if (!strcmp("ping", subcommand))
+			{
+				printf(
+					"ping [addr]\n"
+					"\t-n=[c]\t\tSet amount of packets to send, default is 4\n"
+					"\t-w=[ms]\t\tConnection timeout in ms, default is 5000 ms\n"
+				);
+			}
 			else
 				printf("No additional context provided for '%s'\n", subcommand);
 		}
@@ -107,6 +116,10 @@ static int shell_help(int argc, char **argv, int shellmode)
 			"\t\t\tnr\t\t\t\t- Not Required\n"
 			"\t\t\tnrb\t\t\t\t- Not Required bonding\n"
 			"\t\t\tnrg\t\t\t\t- Not Required general bonding\n"
+			"\n"
+			"\t--ping [addr] <-n> <-w>\t\tPings device\n"
+			"\t\t-n=[c]\t\t\t\tSet amount of packets to send, default is 4\n"
+			"\t\t-w=[ms]\t\t\t\tConnection timeout in ms, default is 5000 ms\n"
 		);
 	}
 	return 0;
@@ -146,7 +159,7 @@ static int shell_radio(int argc, char **argv)
 		else if (get_arg_opt_if_exist(argc, argv, "-nd"))	radio_query.discoverability = 2;
 	}
 
-	return bluehook_radio_info(&radio_query);
+	return bluehook_radio_info(radio_query);
 }
 
 static int shell_scan(int argc, char **argv)
@@ -157,6 +170,7 @@ static int shell_scan(int argc, char **argv)
 		.authetificated = 1,
 		.remembered = 1,
 		.unknown = 1,
+		.inquiry = 1,
 		.iqp = get_info_query_params(argc, argv),
 	};
 	if (get_arg_opt_if_exist(argc, argv, "-c")) scan_query.connected = 0;
@@ -167,7 +181,7 @@ static int shell_scan(int argc, char **argv)
 	char *time_arg = get_arg_opt_if_exist(argc, argv, "-t");
 	if (time_arg) scan_query.timeout = atoi(time_arg);
 
-	return bluehook_scan(&scan_query, 0);
+	return bluehook_scan(scan_query);
 }
 static int shell_list(int argc, char **argv)
 {
@@ -177,6 +191,7 @@ static int shell_list(int argc, char **argv)
 		.authetificated = 1,
 		.remembered = 1,
 		.unknown = 1,
+		.inquiry = 0,
 		.iqp = get_info_query_params(argc, argv),
 	};
 	if (get_arg_opt_if_exist(argc, argv, "-c")) scan_query.connected = 0;
@@ -184,7 +199,7 @@ static int shell_list(int argc, char **argv)
 	if (get_arg_opt_if_exist(argc, argv, "-r")) scan_query.remembered = 0;
 	if (get_arg_opt_if_exist(argc, argv, "-u")) scan_query.unknown = 0;
 
-	return bluehook_scan(&scan_query, 1);
+	return bluehook_scan(scan_query);
 }
 
 
@@ -204,9 +219,9 @@ static int shell_info(int argc, char **argv)
 		.iqp = get_info_query_params(argc, argv)
 	};
 	info_query.iqp.do_info = 1;
-	memcpy(info_query.addr, argv[1], min(sizeof(info_query.addr) - 1, strlen(argv[1])));
+	memcpy(info_query.addr, argv[1], min(BLUETOOTH_ADDRESS_STRLEN - 1, strlen(argv[1])));
 
-	return bluehook_device_info(&info_query);
+	return bluehook_device_info(info_query);
 }
 
 static int shell_remove(int argc, char **argv)
@@ -224,7 +239,7 @@ static int shell_pair(int argc, char **argv)
 		.timeout = -1,
 		.mitm_protection_policy = { 0 }
 	};
-	memcpy(auth_query.addr, argv[1], min(sizeof(auth_query.addr) - 1, strlen(argv[1])));
+	memcpy(auth_query.addr, argv[1], min(BLUETOOTH_ADDRESS_STRLEN - 1, strlen(argv[1])));
 
 	char *time_arg = get_arg_opt_if_exist(argc, argv, "-t");
 	if (time_arg) auth_query.timeout = atoi(time_arg);
@@ -233,9 +248,28 @@ static int shell_pair(int argc, char **argv)
 	if (mitm_arg)
 		memcpy(auth_query.mitm_protection_policy, mitm_arg, 3);
 
-	return bluehook_auth(&auth_query);
+	return bluehook_auth(auth_query);
 }
 
+static int shell_ping(int argc, char **argv)
+{
+	ADDRESS_EXPECTED(argc, "to ping");
+
+	bth_ping_query_t ping_query = {
+		.addr = { 0 },
+		.amount = 4,
+		.timeout = 5000
+	};
+	memcpy(ping_query.addr, argv[1], min(BLUETOOTH_ADDRESS_STRLEN - 1, strlen(argv[1])));
+
+	char *amount_arg = get_arg_opt_if_exist(argc, argv, "-n");
+	if (amount_arg) ping_query.amount = atoi(amount_arg);
+
+	char *timeout_arg = get_arg_opt_if_exist(argc, argv, "-w");
+	if (timeout_arg) ping_query.timeout = atoi(timeout_arg);
+
+	return bluehook_ping(ping_query);
+}
 
 static int tokenize_line(char *line, char **tokens, int toklimit)
 {
@@ -284,6 +318,8 @@ int shell_start(void)
 			shell_remove(argc, argv);
 		else if (!strcmp("pair", subcommand) || !strcmp("auth", subcommand))
 			shell_pair(argc, argv);
+		else if (!strcmp("ping", subcommand))
+			shell_ping(argc, argv);
 		else printf("Unrecognized command: '%s'\n", subcommand);
 
 		putchar('\n');
@@ -309,6 +345,8 @@ int shell_execute(int argc, char **argv)
 		return shell_remove(argc, argv);
 	else if (!strcmp("--pair", subcommand) || !strcmp("--auth", subcommand))
 		return shell_pair(argc, argv);
+	else if (!strcmp("--ping", subcommand))
+		return shell_ping(argc, argv);
 	else
 	{
 		printf("Unrecognized command: '%s'\n", subcommand);

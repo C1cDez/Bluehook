@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <winerror.h>
 
-#include "bthutils.h"
 #include "clofdev.h"
+#include "sockets.h"
 
 
 #define MBNAME(name) name[0] ? name : L"[UNDEFINED]"
@@ -44,22 +44,28 @@ int bluehook_init(void)
 			"\x1b]8;;ms-settings:bluetooth\x1b\\ms-settings:bluetooth\x1b]8;;\x1b\\\n");
 		return 1;
 	}
+	if (bthsocks_init())
+	{
+		printf("WSA Startup failed.\n");
+		return 1;
+	}
 	return 0;
 }
 int bluehook_cleanup(void)
 {
+	bthsocks_cleanup();
 	return 0;
 }
 
 
-static int switch_radio_modes(bth_radio_query_t *query, HANDLE hRadio)
+static int switch_radio_modes(bth_radio_query_t query, HANDLE hRadio)
 {
 	int connectable = BluetoothIsConnectable(hRadio), discoverable = BluetoothIsDiscoverable(hRadio);
 	if (connectable | discoverable);
 
-	if (query->connectability)
+	if (query.connectability)
 	{
-		int query_con = query->connectability == 1;
+		int query_con = query.connectability == 1;
 		if (!connectable == !query_con)
 			printf("Radio is already %s\n", connectable ? "connectable" : "not-connectable");
 		else
@@ -72,9 +78,9 @@ static int switch_radio_modes(bth_radio_query_t *query, HANDLE hRadio)
 					query_con ? "enable" : "disable", GetLastError());
 		}
 	}
-	if (query->discoverability)
+	if (query.discoverability)
 	{
-		int query_dis = query->discoverability == 1;
+		int query_dis = query.discoverability == 1;
 		if (!discoverable == !query_dis)
 			printf("Radio is already %s\n", discoverable ? "discoverable" : "not-discoverable");
 		else
@@ -90,7 +96,7 @@ static int switch_radio_modes(bth_radio_query_t *query, HANDLE hRadio)
 	return 0;
 }
 
-int bluehook_radio_info(bth_radio_query_t *query)
+int bluehook_radio_info(bth_radio_query_t query)
 {
 	HANDLE hRadio;
 	BLUETOOTH_FIND_RADIO_PARAMS params = { sizeof(BLUETOOTH_FIND_RADIO_PARAMS) };
@@ -107,7 +113,7 @@ int bluehook_radio_info(bth_radio_query_t *query)
 	{
 		if (BluetoothGetRadioInfo(hRadio, &radio_info) == ERROR_SUCCESS)
 		{
-			if (query->connectability || query->discoverability)
+			if (query.connectability || query.discoverability)
 				switch_radio_modes(query, hRadio);
 			else
 			{
@@ -119,7 +125,7 @@ int bluehook_radio_info(bth_radio_query_t *query)
 					.service_header = "\tServices:\n",
 					.service = "\t- %-22s%-3s\n"
 				};
-				if (query->iqp.hide_services)
+				if (query.iqp.hide_services)
 				{
 					cfp.service_header = NULL;
 					cfp.service = NULL;
@@ -239,16 +245,16 @@ static void fprint_device_info(FILE *fp, BLUETOOTH_DEVICE_INFO_STRUCT *device,
 	}
 }
 
-int bluehook_scan(bth_scan_query_t *query, int local)
+int bluehook_scan(bth_scan_query_t query)
 {
 	BLUETOOTH_DEVICE_SEARCH_PARAMS params = {
 		.dwSize					= sizeof(BLUETOOTH_DEVICE_SEARCH_PARAMS),
-		.cTimeoutMultiplier		= (UCHAR)(query->timeout / 1.28),
-		.fReturnConnected		= query->connected,
-		.fReturnAuthenticated	= query->authetificated,
-		.fReturnRemembered		= query->remembered,
-		.fReturnUnknown			= query->unknown,
-		.fIssueInquiry			= local ? FALSE : TRUE,
+		.cTimeoutMultiplier		= (UCHAR)(query.timeout / 1.28),
+		.fReturnConnected		= query.connected,
+		.fReturnAuthenticated	= query.authetificated,
+		.fReturnRemembered		= query.remembered,
+		.fReturnUnknown			= query.unknown,
+		.fIssueInquiry			= query.inquiry,
 		.hRadio					= NULL
 	};
 
@@ -266,8 +272,8 @@ int bluehook_scan(bth_scan_query_t *query, int local)
 	{
 		if (BluetoothUpdateDeviceRecord(&device) == ERROR_SUCCESS);
 
-		fprint_device_info(stdout, &device, ddp_from_iqp(query->iqp));
-		if (query->iqp.do_info) putchar('\n');
+		fprint_device_info(stdout, &device, ddp_from_iqp(query.iqp));
+		if (query.iqp.do_info) putchar('\n');
 
 		device.dwSize = sizeof(BLUETOOTH_DEVICE_INFO_STRUCT);
 	}
@@ -278,12 +284,12 @@ int bluehook_scan(bth_scan_query_t *query, int local)
 }
 
 
-int bluehook_device_info(bth_info_query_t *query)
+int bluehook_device_info(bth_info_query_t query)
 {
-	BLUETOOTH_ADDRESS_STRUCT bth_addr = str2addr(query->addr);
+	BLUETOOTH_ADDRESS_STRUCT bth_addr = str2addr(query.addr);
 	if (bth_addr.ullLong == BLUETOOTH_NULL_ADDRESS)
 	{
-		printf("Incorrect address '%s'\n", query->addr);
+		printf("Incorrect address '%s'\n", query.addr);
 		return 1;
 	}
 
@@ -292,13 +298,13 @@ int bluehook_device_info(bth_info_query_t *query)
 
 	if (BluetoothGetDeviceInfo(NULL, &device) != ERROR_SUCCESS)
 	{
-		printf("Failed to locate the device %s\n", query->addr);
+		printf("Failed to locate the device %s\n", query.addr);
 		return 1;
 	}
 
 	if (BluetoothUpdateDeviceRecord(&device) == ERROR_SUCCESS);
 
-	fprint_device_info(stdout, &device, ddp_from_iqp(query->iqp));
+	fprint_device_info(stdout, &device, ddp_from_iqp(query.iqp));
 
 	return 0;
 }
@@ -349,13 +355,13 @@ static BOOL CALLBACK bluehook_auth_callback(LPVOID pvParam,
 }
 
 
-int bluehook_auth(bth_auth_query_t *auth_query)
+int bluehook_auth(bth_auth_query_t query)
 {
 	BLUETOOTH_DEVICE_INFO_STRUCT device = { sizeof(BLUETOOTH_DEVICE_INFO_STRUCT) };
-	device.Address = str2addr(auth_query->addr);
+	device.Address = str2addr(query.addr);
 	if (device.Address.ullLong == BLUETOOTH_NULL_ADDRESS)
 	{
-		printf("Incorrect address '%s'\n", auth_query->addr);
+		printf("Incorrect address '%s'\n", query.addr);
 		return 1;
 	}
 
@@ -366,7 +372,7 @@ int bluehook_auth(bth_auth_query_t *auth_query)
 		return 1;
 	}
 
-	AUTHENTICATION_REQUIREMENTS ar = str2ar(auth_query->mitm_protection_policy);
+	AUTHENTICATION_REQUIREMENTS ar = str2ar(query.mitm_protection_policy);
 	int res = BluetoothAuthenticateDeviceEx(NULL, NULL, &device, NULL, ar);
 
 	if (res == ERROR_SUCCESS)
@@ -374,7 +380,7 @@ int bluehook_auth(bth_auth_query_t *auth_query)
 		if (BluetoothGetDeviceInfo(NULL, &device) == ERROR_SUCCESS)
 		{
 			if (device.fAuthenticated) wprintf(L"Successfully paired with '%s' (%hs)\n", 
-				MBNAME(device.szName), auth_query->addr);
+				MBNAME(device.szName), query.addr);
 			else printf("Something went wrong.\nTry change MITM protection policy. Use -m=...\n");
 		}
 	}
@@ -387,4 +393,25 @@ int bluehook_auth(bth_auth_query_t *auth_query)
 
 	BluetoothUnregisterAuthentication(hReg);
 	return 0;
+}
+
+int bluehook_ping(bth_ping_query_t query)
+{
+	BLUETOOTH_ADDRESS_STRUCT bth_addr = str2addr(query.addr);
+	if (bth_addr.ullLong == BLUETOOTH_NULL_ADDRESS)
+	{
+		printf("Incorrect address '%s'\n", query.addr);
+		return 1;
+	}
+	if (query.amount <= 0)
+	{
+		printf("Illegal amount of packets to send: %d\n", query.amount);
+		return 1;
+	}
+	if (query.timeout <= 0)
+	{
+		printf("Illegal timeout: %d\n", query.timeout);
+		return 1;
+	}
+	return bthsocks_ping(bth_addr, query.amount, query.timeout);
 }
